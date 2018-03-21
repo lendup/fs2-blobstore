@@ -1,0 +1,42 @@
+language: scala
+
+scala:
+- 2.12.4
+
+jdk:
+- oraclejdk8
+
+branches:
+  only:
+  - master
+
+before_script:
+- if [ $TRAVIS_PULL_REQUEST = 'false' ]; then git checkout -qf $TRAVIS_BRANCH; fi
+
+script:
+- |
+  if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
+    if [ $RELEASE_ON_PUSH = 'false' ]; then
+      sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+    else
+      sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+    fi
+  else
+    sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+  fi
+- find $HOME/.sbt -name "*.lock" | xargs rm
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+
+cache:
+  directories:
+  - "$HOME/.ivy2/cache"
+  - "$HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION"
+
+after_success:
+- find $HOME/.sbt -name "*.lock" | xargs rm
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+- bash <(curl -s https://codecov.io/bash) -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
+
+env:
+  global:
+    secure: Me93VBnyKt2XKJi3kTqVs0vP1QbI928ulmZnk2XsrHqzZKyZrfNhuSk7PNIFjgS7EpULkJr0pi1IHN/W1CKPSp4WFFK9isb+5hoz04VCvkkVVeEqtaRATSgDvdCs0F9Zfw1tqKyWmITI/XwR2R3eIB/jhdaQU7kCeUjayXcVeRhVLcjXyy9gqZJFeByjIzXCGJuk4O4pFFuqyojQPaBiSlcLF/T+0VWb/5WnIoj4yQ4CmVt8yP9SKRAJwqwL/SwWm7jNBDkkaDIE2o7xyG2yzgHKfa2e4aCIR1R8dzkEjdFNIBc14OLojTnewbSgq0Mv6snLaJgjtaZFlcP8HnIMGKjQLWudPZwZjkHfZAGHJSD9FPhbV/JGpfNkKNLhmOvD0yaDkBDLcticYLoH6gI4yNaLBhy3Yqx0ncDbYhCXGH40crV0y9qP1bckC8ovavlvIcaTgaICpsUI4vPOlV+NiG1pl1or6K+GfXtaVXxmmXY22+NFySS++VHHsB4O0GqNz7N/Tvxz8dFzCC1P8DX/ZfCS5hvHY4JmBHyl6UxtwBuEyRpW3FNaHXV6hoXskXgVeNgSofH91OP1bFs6Iv1vLauB+xFGd3vaPJFIENEtlMj6PQ/IEEBNx7zTs4vigWfATonl6cPr7h8/CgZIkQMy60nQObl3+HJHncDe62MMXoY=
