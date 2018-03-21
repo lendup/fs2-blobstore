@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/lendup/fs2-blobstore.svg?branch=master)](https://travis-ci.org/lendup/fs2-blobstore)
 [![codecov](https://codecov.io/gh/lendup/fs2-blobstore/branch/master/graph/badge.svg)](https://codecov.io/gh/lendup/fs2-blobstore)
+[![Join the chat at https://gitter.im/fs2-blobstore/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/fs2-blobstore/Lobby)
 
 
 Minimal, idiomatic, stream-based Scala interface for key/value store implementations.
