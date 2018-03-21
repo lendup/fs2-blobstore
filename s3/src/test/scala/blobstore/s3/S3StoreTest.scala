@@ -17,13 +17,14 @@ package blobstore
 package s3
 
 import cats.effect.IO
+import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 
 @org.scalatest.Ignore
 class S3StoreTest extends AbstractStoreTest {
 
   import scala.concurrent.ExecutionContext.Implicits.global
-  private val client = AmazonS3ClientBuilder.standard().build()
+  private val client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build()
   override val store: Store[IO] = S3Store[IO](client)
   override val root: String = System.getenv("S3_STORE_TEST_BUCKET")
 
