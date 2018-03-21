@@ -1,7 +1,12 @@
 # fs2-blobstore
 
-fs2 based abstraction for a S3-like key/value store backed by different persistence 
-mechanisms (i.e. S3, FileSystem, sftp, etc)
+[![Build Status](https://travis-ci.org/lendup/fs2-blobstore.svg?branch=master)](https://travis-ci.org/lendup/fs2-blobstore)
+[![codecov](https://codecov.io/gh/lendup/fs2-blobstore/branch/master/graph/badge.svg)](https://codecov.io/gh/lendup/fs2-blobstore)
+
+
+Minimal, idiomatic, stream-based Scala interface for key/value store implementations.
+It provides abstractions for S3-like key/value store backed by different persistence 
+mechanisms (i.e. S3, FileSystem, sftp, etc).
 
 ### Store Abstraction
 
