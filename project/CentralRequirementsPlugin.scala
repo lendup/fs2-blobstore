@@ -24,6 +24,7 @@ object CentralRequirementsPlugin extends AutoPlugin {
     // where can users find information about this project?
     homepage := Some(url("https://github.com/lendup/fs2-blobstore")),
     // show users where the source code is located
-    scmInfo := Some(ScmInfo(url("https://github.com/lendup/fs2-blobstore"), "git@github.com:lendup/fs2-blobstore.git"))
+    scmInfo := Some(ScmInfo(url("https://github.com/lendup/fs2-blobstore"), "git@github.com:lendup/fs2-blobstore.git")),
+    startYear := Some(2018)
   )
 }

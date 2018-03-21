@@ -1,3 +1,7 @@
 .idea
 target
 tmp
+
+project/travis-deploy-key
+project/.gnupg
+!project/.gnupg/secret.tar.enc

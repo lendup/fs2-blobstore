@@ -2,7 +2,7 @@ name := "fs2-blobstore"
 
 inThisBuild(Seq(
   scalaVersion := "2.12.4",
-  organization := "lendup.fs2-blobstore"
+  organization := "com.lendup.fs2-blobstore"
 ))
 
 enablePlugins(DisablePublishingPlugin)
