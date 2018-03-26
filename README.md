@@ -1,6 +1,7 @@
 # fs2-blobstore
 
 [![Build Status](https://travis-ci.org/lendup/fs2-blobstore.svg?branch=master)](https://travis-ci.org/lendup/fs2-blobstore)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.lendup.fs2-blobstore/core_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.lendup.fs2-blobstore/core)
 [![codecov](https://codecov.io/gh/lendup/fs2-blobstore/branch/master/graph/badge.svg)](https://codecov.io/gh/lendup/fs2-blobstore)
 [![Join the chat at https://gitter.im/fs2-blobstore/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/fs2-blobstore/Lobby)
 
@@ -8,6 +9,23 @@
 Minimal, idiomatic, stream-based Scala interface for key/value store implementations.
 It provides abstractions for S3-like key/value store backed by different persistence 
 mechanisms (i.e. S3, FileSystem, sftp, etc).
+
+### Installing
+
+fs2-blobstore is deployed to maven central, add to build.sbt:
+
+```sbtshell
+libraryDependencies ++= Seq(
+  "com.lendup.fs2-blobstore" %% "core" % "0.1.1",
+  "com.lendup.fs2-blobstore" %% "sftp" % "0.1.1",
+  "com.lendup.fs2-blobstore" %% "s3" % "0.1.1"
+)
+```
+
+`core` module has minimal dependencies and only provides `FileStore` implementation.
+`sftp` module provides `SftpStore` and depends on [Jsch client](http://www.jcraft.com/jsch/). 
+`s3` module provides `S3Store` and dependes on [AWS S3 SDK](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3.html)
+
 
 ### Store Abstraction
 
