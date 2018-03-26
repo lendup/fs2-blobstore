@@ -83,6 +83,36 @@ class MyStoreImplTest extends blobstore.AbstractStoreTest {
 This test suite will guarantee that basic operations are supported properly and 
 consistent with all other `Store` implementations.
 
+**Running Tests:**
+
+Tests for core module have no dependencies and can be run with `sbt core/test`.
+These include `FileStore` and `Path` tests.
+
+Currently, tests for `SftpStore` and `S3Store` are annotated with `org.scalatest.Ignore`
+because they require a running SFTP server and AWS bucket and credentials respectively.
+To run either one of these tests locally please remove annotation but make sure you do
+not push this change as it will make tests fail in travis (we are working to get these
+tests set up to run in ci pipeline soon).
+
+To run `S3StoreTest` locally you need to provide a bucket with write access and configure
+AWS credentials per [default credentials chain](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html).
+
+```bash
+S3_STORE_TEST_BUCKET=your-bucket sbt s3/test
+```
+
+To run `SftpStoreTest` it is required to set up a local SFTP server that:
+
+1. Bound to `127.0.0.1` on standard SSH port 22 (mac or linux users can enable SSH server)
+1. Server public key is listed in `~/.ssh/known_hosts`
+1. Server recognizes current user and public key included in authorized users
+1. Corresponding private key is stored in `~/.ssh/id_rsa_tmp`
+
+```bash
+sbt sftp/test
+```
+
+
 ### Path Abstraction
 
 `blobstore.Path` is the representation of `key` in the key/value store. The key 
