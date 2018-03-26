@@ -24,7 +24,7 @@ libraryDependencies ++= Seq(
 
 `core` module has minimal dependencies and only provides `FileStore` implementation.
 `sftp` module provides `SftpStore` and depends on [Jsch client](http://www.jcraft.com/jsch/). 
-`s3` module provides `S3Store` and dependes on [AWS S3 SDK](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3.html)
+`s3` module provides `S3Store` and depends on [AWS S3 SDK](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3.html)
 
 
 ### Store Abstraction
