@@ -136,14 +136,14 @@ trait StoreOps {
       * Remove all files from a store recursively, given a path
       *
       */
-    def removeAll(rmPath: Path)(implicit F: Sync[F]): F[Int] = {
+    def removeAll(dstPath: Path)(implicit F: Sync[F]): F[Int] = {
       import implicits._
-      store.list(srcPath).evalMap(p =>
+      store.list(dstPath).evalMap(p =>
         if (p.isDir) {
-          removeAll(rmPath / p.filename)
+          removeAll(dstPath / p.filename)
         } else {
           val dp = if (dstPath.isDir) dstPath / p.filename else dstPath
-          store.remove(dp)
+          fs2.Stream.eval(store.remove(dp)).compile.drain.as(1)
         }
       ).compile.fold(0)(_ + _)
     }
