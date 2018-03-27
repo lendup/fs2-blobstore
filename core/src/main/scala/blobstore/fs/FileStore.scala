@@ -65,7 +65,13 @@ case class FileStore[F[_]](fsroot: NioPath)(implicit F: Effect[F]) extends Store
 
   override def move(src: Path, dst: Path): F[Unit] = F.delay(Files.move(src, dst)).void
 
-  override def copy(src: Path, dst: Path): F[Unit] = F.delay(Files.copy(src, dst)).void
+  override def copy(src: Path, dst: Path): F[Unit] = {
+    val mkdir = Stream.eval(F.delay(Files.createDirectories(_toNioPath(dst).getParent)).as(true))
+    mkdir.ifM(
+      F.delay(Files.copy(src, dst)).void,
+      Stream.raiseError(new Exception(s"failed to create dir: $dst"))
+    )
+  }
 
   override def remove(path: Path): F[Unit] = F.delay(Files.delete(path))
 
