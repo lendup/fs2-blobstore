@@ -98,6 +98,7 @@ trait StoreOps {
   }
 
   implicit class TransferOps[F[_]](store: Store[F]) {
+
     /**
       * Copy value of the given path in this store to the destination store.
       *
@@ -128,4 +129,24 @@ trait StoreOps {
       ).compile.fold(0)(_ + _)
     }
   }
+
+  implicit class RemoveOps[F[_]](store: Store[F]) {
+
+    /**
+      * Remove all files from a store recursively, given a path
+      *
+      */
+    def removeAll(rmPath: Path)(implicit F: Sync[F]): F[Int] = {
+      import implicits._
+      store.list(srcPath).evalMap(p =>
+        if (p.isDir) {
+          removeAll(rmPath / p.filename)
+        } else {
+          val dp = if (dstPath.isDir) dstPath / p.filename else dstPath
+          store.remove(dp)
+        }
+      ).compile.fold(0)(_ + _)
+    }
+  }
+
 }
