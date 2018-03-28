@@ -253,8 +253,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     test.unsafeRunSync()
   }
 
-  // TODO this doesn't test recursive directories. Once listRecursively() is implemented we
-  // can fix this
+  // TODO this doesn't test recursive directories. Once listRecursively() is implemented we can fix this
   it should "remove all should remove all files in a directory" in {
     val srcDir = dirPath("rm-dir-to-dir-src")
 
