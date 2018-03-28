@@ -16,7 +16,7 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 
 import java.util.UUID
-import java.nio.file.{Files, Paths, Path => NioPath}
+import java.nio.file.{Paths, Path => NioPath}
 
 import blobstore.fs.FileStore
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -24,7 +24,7 @@ import cats.effect.IO
 import cats.implicits._
 import implicits._
 
-import scala.util.control.NonFatal
+//import scala.util.control.NonFatal
 
 trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
 
@@ -273,13 +273,13 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   }
 
   // remove dirs created by AbstractStoreTest
-  override def afterAll(): Unit = {
-    val clean = List("transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src",
-      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst")
-      .map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"), transferStoreRootDir)
-
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
-  }
+//  override def afterAll(): Unit = {
+//    val clean = List("transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src",
+//      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst")
+//      .map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
+//      List(transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"), transferStoreRootDir)
+//
+//    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
+//  }
 
 }
