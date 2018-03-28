@@ -30,6 +30,9 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
   val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir)
+
+  val copyStoreRootDir: NioPath = Paths.get("tmp/copy-store-root/")
+  val copyStore: Store[IO] = FileStore[IO](copyStoreRootDir)
   val store: Store[IO]
   val root: String
 
@@ -224,6 +227,27 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     test.unsafeRunSync()
   }
 
+  it should "copy files in a store from one directory to another" in {
+    val srcDir = dirPath("copy-dir-to-dir-src")
+    val dstDir = dirPath("copy-dir-to-dir-dst")
+
+    (1 to 10)
+      .toList
+      .map(i => s"filename-$i.txt")
+      .map(writeFile(copyStore, srcDir))
+
+    val test = for {
+      _ <- copyStore.copy(srcDir, dstDir)
+      c1 <- copyStore.getContents(srcDir)
+        .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
+      c2 <- copyStore.getContents(dstDir)
+        .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
+    } yield {
+      c1.mkString("\n") must be(c2.mkString("\n"))
+    }
+
+    test.unsafeRunSync()
+  }
 
   def dirPath(name: String): Path = Path(s"$root/test-$testRun/$name/")
 

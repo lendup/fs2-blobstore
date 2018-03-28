@@ -137,6 +137,8 @@ trait StoreOps {
       *
       */
     def removeAll(dstPath: Path)(implicit F: Sync[F]): F[Int] = {
+      println("yo")
+
       import implicits._
       store.list(dstPath).evalMap(p =>
         if (p.isDir) {
