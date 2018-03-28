@@ -261,16 +261,10 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
       .map(i => s"filename-$i.txt")
       .map(writeFile(removeStore, srcDir))
 
-    val test = for {
-      _ <- removeStore.removeAll(srcDir)
-      c1 <- removeStore.getContents(srcDir)
-        .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
-    } yield {
-      println(c1.mkString("\n"))
-      //c1.mkString("\n") must be(c2.mkString("\n"))
-    }
+    removeStore.removeAll(srcDir).unsafeRunSync()
 
-    test.unsafeRunSync()
+    removeStore.list(Path(removeStoreRootDir.toString))
+      .compile.drain.unsafeRunSync().isEmpty must be(true)
   }
 
   def dirPath(name: String): Path = Path(s"$root/test-$testRun/$name/")
