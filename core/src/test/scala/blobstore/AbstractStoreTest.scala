@@ -30,6 +30,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
   val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir)
+
   val store: Store[IO]
   val root: String
 
@@ -224,6 +225,41 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     test.unsafeRunSync()
   }
 
+  it should "copy files in a store from one directory to another" in {
+    val srcDir = dirPath("copy-dir-to-dir-src")
+    val dstDir = dirPath("copy-dir-to-dir-dst")
+
+    writeFile(store, srcDir)("filename.txt")
+
+    val test = for {
+      _ <- store.copy(srcDir / "filename.txt", dstDir / "filename.txt")
+      c1 <- store.getContents(srcDir / "filename.txt")
+        .handleError(e => s"FAILED getContents: ${e.getMessage}")
+      c2 <- store.getContents(dstDir / "filename.txt")
+        .handleError(e => s"FAILED getContents: ${e.getMessage}")
+      _ <- store.remove(dstDir / "filename.txt")
+      _ <- store.remove(srcDir / "filename.txt")
+    } yield {
+      c1.mkString("\n") must be(c2.mkString("\n"))
+    }
+
+    test.unsafeRunSync()
+  }
+
+  // TODO this doesn't test recursive directories. Once listRecursively() is implemented we can fix this
+  it should "remove all should remove all files in a directory" in {
+    val srcDir = dirPath("rm-dir-to-dir-src")
+
+    (1 to 10)
+      .toList
+      .map(i => s"filename-$i.txt")
+      .map(writeFile(store, srcDir))
+
+    store.removeAll(srcDir).unsafeRunSync()
+
+    store.list(srcDir)
+      .compile.drain.unsafeRunSync().isEmpty must be(true)
+  }
 
   def dirPath(name: String): Path = Path(s"$root/test-$testRun/$name/")
 
@@ -238,7 +274,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
     val clean = List("transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src",
-      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src")
+      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst")
       .map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
       List(transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"), transferStoreRootDir)
 

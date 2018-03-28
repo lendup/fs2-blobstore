@@ -18,6 +18,7 @@ package blobstore
 import fs2.{Sink, Stream}
 
 trait Store[F[_]] {
+
   /**
     * List paths. See [[StoreOps.ListOps]] for convenient listAll method.
     * @param path to list
@@ -69,4 +70,5 @@ trait Store[F[_]] {
     * @return F[Unit]
     */
   def remove(path: Path): F[Unit]
+
 }

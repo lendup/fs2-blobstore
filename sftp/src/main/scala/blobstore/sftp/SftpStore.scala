@@ -16,11 +16,13 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package sftp
 
+import java.nio.file.Files
 import java.util.Date
 
 import scala.collection.JavaConverters._
 import cats.effect.Effect
 import com.jcraft.jsch._
+
 import scala.util.Try
 import implicits._
 
@@ -89,7 +91,16 @@ case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Ef
 
   override def move(src: Path, dst: Path): F[Unit] = F.delay(channel.rename(src, dst))
 
-  override def copy(src: Path, dst: Path): F[Unit] = get(src).to(put(dst)).compile.drain
+  override def copy(src: Path, dst: Path): F[Unit] = {
+    val cp = for {
+      tmp <- fs2.Stream.eval(F.delay(Files.createTempFile("sftp-copy", ".tmp")))
+      _ <- (get(src) to fs2.io.file.writeAll(tmp)).last
+      _ <- (fs2.io.file.readAll(tmp, 4096) to put(dst)).last
+      _ <- fs2.Stream.eval(F.delay(Files.deleteIfExists(tmp))).handleErrorWith(_ => fs2.Stream.empty)
+    } yield ()
+
+    cp.compile.drain
+  }
 
   override def remove(path: Path): F[Unit] = F.delay(channel.rm(path))
 
