@@ -230,13 +230,15 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     val dstDir = dirPath("copy-dir-to-dir-dst")
 
     writeFile(store, srcDir)("filename.txt")
-    store.copy(srcDir / "filename.txt", dstDir / "filename.txt").unsafeRunSync()
 
     val test = for {
+      _ <- store.copy(srcDir / "filename.txt", dstDir / "filename.txt")
       c1 <- store.getContents(srcDir / "filename.txt")
         .handleError(e => s"FAILED getContents: ${e.getMessage}")
       c2 <- store.getContents(dstDir / "filename.txt")
         .handleError(e => s"FAILED getContents: ${e.getMessage}")
+      _ <- store.remove(dstDir / "filename.txt")
+      _ <- store.remove(srcDir / "filename.txt")
     } yield {
       c1.mkString("\n") must be(c2.mkString("\n"))
     }
