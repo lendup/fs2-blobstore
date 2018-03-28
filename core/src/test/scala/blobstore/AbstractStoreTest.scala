@@ -275,7 +275,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
     val clean = List("transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src",
-      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src")
+      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst")
       .map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
       List(transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"), transferStoreRootDir)
 
