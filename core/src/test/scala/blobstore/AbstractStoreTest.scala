@@ -33,6 +33,10 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   val copyStoreRootDir: NioPath = Paths.get("tmp/copy-store-root/")
   val copyStore: Store[IO] = FileStore[IO](copyStoreRootDir)
+
+  val removeStoreRootDir: NioPath = Paths.get("tmp/remove-store-root/")
+  val removeStore: Store[IO] = FileStore[IO](removeStoreRootDir)
+
   val store: Store[IO]
   val root: String
 
@@ -244,6 +248,26 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
         .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
     } yield {
       c1.mkString("\n") must be(c2.mkString("\n"))
+    }
+
+    test.unsafeRunSync()
+  }
+
+  it should "remove all should remove all files in a directory" in {
+    val srcDir = dirPath("rm-dir-to-dir-src")
+
+    (1 to 10)
+      .toList
+      .map(i => s"filename-$i.txt")
+      .map(writeFile(removeStore, srcDir))
+
+    val test = for {
+      _ <- removeStore.removeAll(srcDir)
+      c1 <- removeStore.getContents(srcDir)
+        .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
+    } yield {
+      println(c1.mkString("\n"))
+      //c1.mkString("\n") must be(c2.mkString("\n"))
     }
 
     test.unsafeRunSync()
