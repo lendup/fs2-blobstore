@@ -31,12 +31,6 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
   val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir)
 
-  val copyStoreRootDir: NioPath = Paths.get("tmp/copy-store-root/")
-  val copyStore: Store[IO] = FileStore[IO](copyStoreRootDir)
-
-  val removeStoreRootDir: NioPath = Paths.get("tmp/remove-store-root/")
-  val removeStore: Store[IO] = FileStore[IO](removeStoreRootDir)
-
   val store: Store[IO]
   val root: String
 
@@ -238,13 +232,13 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     (1 to 10)
       .toList
       .map(i => s"filename-$i.txt")
-      .map(writeFile(copyStore, srcDir))
+      .map(writeFile(store, srcDir))
 
     val test = for {
-      _ <- copyStore.copy(srcDir, dstDir)
-      c1 <- copyStore.getContents(srcDir)
+      _ <- store.copy(srcDir, dstDir)
+      c1 <- store.getContents(srcDir)
         .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
-      c2 <- copyStore.getContents(dstDir)
+      c2 <- store.getContents(dstDir)
         .handleError(e => s"FAILED copyStore.getContents: ${e.getMessage}")
     } yield {
       c1.mkString("\n") must be(c2.mkString("\n"))
@@ -260,11 +254,11 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     (1 to 10)
       .toList
       .map(i => s"filename-$i.txt")
-      .map(writeFile(removeStore, srcDir))
+      .map(writeFile(store, srcDir))
 
-    removeStore.removeAll(srcDir).unsafeRunSync()
+    store.removeAll(srcDir).unsafeRunSync()
 
-    removeStore.list(Path(removeStoreRootDir.toString))
+    store.list(srcDir)
       .compile.drain.unsafeRunSync().isEmpty must be(true)
   }
 
