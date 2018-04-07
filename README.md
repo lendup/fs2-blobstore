@@ -133,7 +133,7 @@ separators when referring to filesystem paths.
 ### Store Implementations
 
    * [FileStore](fs/src/main/scala/blobstore/fs/FileStore.scala) backed by local
-   FileSystem. FileStore is privided as part of core module because it doesn't
+   FileSystem. FileStore is provided as part of core module because it doesn't
    include any additional dependencies and it is used as the default source store
    in TransferOps tests. It only requires root path in the local file system:
      ```scala
