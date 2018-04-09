@@ -56,7 +56,7 @@ case class FileStore[F[_]](fsroot: NioPath)(implicit F: Effect[F]) extends Store
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = fs2.io.file.readAll(path, chunkSize)
 
   override def put(path: Path): Sink[F, Byte] = { in =>
-    val mkdir = Stream.eval(F.delay(Files.createDirectories(_toNioPath(path).getParent)).as(true))
+    val mkdir: Stream[F, Boolean] = Stream.eval(F.delay(Files.createDirectories(_toNioPath(path).getParent)).as(true))
     mkdir.ifM(
       fs2.io.file.writeAll(path).apply(in),
       Stream.raiseError(new Exception(s"failed to create dir: $path"))

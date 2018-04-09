@@ -18,3 +18,5 @@ lazy val s3 = project.dependsOn(core % "compile->compile;test->test")
 lazy val sftp = project.dependsOn(core % "compile->compile;test->test")
 
 lazy val box = project.dependsOn(core % "compile->compile;test->test")
+
+scalacOptions in Compile ~= (_.filterNot(Set("-Xfatal-warnings")))
