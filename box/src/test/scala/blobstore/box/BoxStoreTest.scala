@@ -8,7 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 
 class BoxStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll{
 
-  val myDevToken = "dZbJ469nDKghXQu8cSrPg0rU19KdZM3N"
+  val myDevToken = ""
   val api = new BoxAPIConnection(myDevToken)
   val testEReportsFolder = "48353023088"
 
