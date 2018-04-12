@@ -146,7 +146,7 @@ separators when referring to filesystem paths.
    [AWS S3](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3.html). 
    It requires an authenticated `AmazonS3` client:
      ```scala
-     import blobstore.Store, blobstore.fs.S3Store
+     import blobstore.Store, blobstore.s3.S3Store
      import com.amazonaws.services.s3.AmazonS3ClientBuilder
      import cats.effect.IO
      val store: Store[IO] = S3Store[IO](AmazonS3ClientBuilder.standard().build())
