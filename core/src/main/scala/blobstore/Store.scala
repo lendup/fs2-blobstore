@@ -65,7 +65,7 @@ trait Store[F[_]] {
   def copy(src: Path, dst: Path): F[Unit]
 
   /**
-    * Remove byte for given path.
+    * Remove bytes for given path.
     * @param path to remove
     * @return F[Unit]
     */
