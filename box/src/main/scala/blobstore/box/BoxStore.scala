@@ -62,7 +62,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * List paths. See [[StoreOps.ListOps]] for convenient listAll method.
+    * List paths. See StoreOps.ListOps for convenient listAll method.
     *
     * @param path to list
     * @return stream of Paths. Implementing stores must guarantee that returned Paths
@@ -91,7 +91,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * Get bytes for the given Path. See [[StoreOps.GetOps]] for convenient get and getContents methods.
+    * Get bytes for the given Path. See StoreOps.GetOps for convenient get and getContents methods.
     *
     * @param path      to get
     * @param chunkSize bytes to read in each chunk.
@@ -162,10 +162,10 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * Provides a Sink that writes bytes into the provided path. See [[StoreOps.PutOps]] for convenient put String
+    * Provides a Sink that writes bytes into the provided path. See StoreOps.PutOps for convenient put String
     * and put file methods.
     *
-    * It is highly recommended to provide [[Path.size]] when writing as it allows for optimizations in some store.
+    * It is highly recommended to provide Path.size when writing as it allows for optimizations in some store.
     *
     * @param path to put
     * @return sink of bytes. This throws an exception if a file at this path already exists.
