@@ -19,6 +19,7 @@ package box
 
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
+import cats.implicits._
 import cats.effect.Effect
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
 import fs2.{Sink, Stream}
@@ -70,7 +71,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   override def list(path: Path): fs2.Stream[F, Path] = {
     for {
       itemOpt <- Stream.eval(F.delay(boxItemAtPath(path)))
-      item <- if (itemOpt.isDefined) Stream.emit(itemOpt.get) else Stream.empty
+      item <- itemOpt.foldMap[Stream[F,BoxItem]](Stream.emit(_))
 
       listFiles = Stream.eval(F.delay(item.asInstanceOf[BoxFolder]))
           .flatMap(folder => Stream.fromIterator(folder.getChildren.iterator.asScala))
