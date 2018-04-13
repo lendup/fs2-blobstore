@@ -18,8 +18,10 @@ package blobstore
 import java.nio.charset.Charset
 
 import cats.effect.{Effect, Sync}
-import fs2.{Pipe, Stream}
+import fs2.{Pipe, Sink, Stream}
 import cats.implicits._
+
+import scala.concurrent.ExecutionContext
 
 trait StoreOps {
 
@@ -43,7 +45,23 @@ trait StoreOps {
       * @return F[Unit]
       */
     def put(src: java.nio.file.Path, dst: Path)(implicit F: Sync[F]): F[Unit] =
-      fs2.io.file.readAll(src, 4096).to(store.put(dst.copy(size = Option(src.toFile.getTotalSpace)))).compile.drain
+      fs2.io.file
+        .readAll(src, 4096)
+        .to(store.put(dst.copy(size = Option(src.toFile.length))))
+        .compile.drain
+
+
+    /**
+      * Put sink that buffers all incoming bytes to local filesystem, computes buffered data size, then puts bytes
+      * to store. Useful when uploading data to stores that require content size like S3Store.
+      *
+      * @param path Path to write to
+      * @return Sink[F, Byte] buffered sink
+      */
+    def bufferedPut(path: Path)(implicit ec: ExecutionContext, ef: Effect[F]): Sink[F, Byte] = in =>
+      in.through(bufferToDisk(4096)).flatMap { case (n, s) =>
+        s.to(store.put(path.copy(size = Some(n))))
+      }
   }
 
   implicit class GetOps[F[_]](store: Store[F]) {

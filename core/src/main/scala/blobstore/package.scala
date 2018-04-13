@@ -14,8 +14,13 @@ Copyright 2018 LendUp Global, Inc.
    limitations under the License.
 */
 import java.io.OutputStream
-import cats.effect.Effect
-import fs2.{Pull, Stream}
+import java.nio.file.Files
+
+import cats.effect.{Effect, Sync}
+import cats.implicits._
+import fs2.{Pipe, Pull, Stream}
+
+import scala.concurrent.ExecutionContext
 
 package object blobstore {
   protected[blobstore] def _writeAllToOutputStream1[F[_]](in: Stream[F, Byte], out: OutputStream)(
@@ -25,4 +30,16 @@ package object blobstore {
       case Some((hd, tl)) => Pull.eval[F, Unit](F.delay(out.write(hd.toArray))) >> _writeAllToOutputStream1(tl, out)
     }
   }
+
+  protected[blobstore] def bufferToDisk[F[_]: Effect](chunkSize: Int)(implicit ec: ExecutionContext)
+  : Pipe[F, Byte, (Long, Stream[F, Byte])] = {
+    in => Stream.bracket(Sync[F].delay(Files.createTempFile("bufferToDisk", ".bin")))(
+      p => {
+        in.to(fs2.io.file.writeAllAsync(p)).drain ++
+          Stream.emit((p.toFile.length, fs2.io.file.readAllAsync(p, chunkSize)))
+      },
+      p => Sync[F].delay(p.toFile.delete).void
+    )
+  }
+
 }

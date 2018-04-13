@@ -38,4 +38,9 @@ class PathTest extends FlatSpec with MustMatchers {
     val path = Path("s3://some-bucket/path/to/")
     path must be(Path("some-bucket", "path/to/", None, true, None))
   }
+
+  it should "parse paths with no key" in {
+    val path = Path("s3://some-bucket")
+    path must be(Path("some-bucket", "", None, false, None))
+  }
 }
