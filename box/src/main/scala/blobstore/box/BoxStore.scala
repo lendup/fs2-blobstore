@@ -60,7 +60,6 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
     }
   }
 
-
   /**
     * List paths. See [[StoreOps.ListOps]] for convenient listAll method.
     *
@@ -143,18 +142,22 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
 
         if (!matchingItem.getResource.isInstanceOf[BoxFolder]) {
           throw new Exception(s"Item '${matchingItem.getName}' exists along path but was not folder")
-        } else {
-          val folder = matchingItem.getResource.asInstanceOf[BoxFolder]
-          putFolderAtPath(folder, tail)
         }
+        val folder = matchingItem.getResource.asInstanceOf[BoxFolder]
+        putFolderAtPath(folder, tail)
     }
   }
 
+  /**
+    * Helper method to split a path into a list representing its folder path,
+    * and a string representing its file name.
+    * @param path
+    * @return
+    */
   def splitPath(path: Path): (List[String], String) = {
     val fullPath = path.root :: path.key.split("/").toList
-    val pathToParentFolder = fullPath.dropRight(1)
-    val key = fullPath.takeRight(1).head
-    (pathToParentFolder, key)
+    val (pathToParentFolder, key) = fullPath.splitAt(fullPath.size - 1)
+    (pathToParentFolder, key.head)
   }
 
   /**
@@ -195,7 +198,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * Moves bytes from srcPath to dstPath. Stores should optimize to use native move functions to avoid data transfer.
+    * Moves file from srcPath to dstPath. Stores should optimize to use native move functions to avoid data transfer.
     *
     * @param src path
     * @param dst path
@@ -211,7 +214,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * Copies bytes from srcPath to dstPath. Stores should optimize to use native copy functions to avoid data transfer.
+    * Copies file from srcPath to dstPath. Stores should optimize to use native copy functions to avoid data transfer.
     *
     * @param src path
     * @param dst path
@@ -227,7 +230,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
   }
 
   /**
-    * Remove byte for given path.
+    * Remove file for given path.
     *
     * @param path to remove
     * @return F[Unit]
