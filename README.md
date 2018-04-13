@@ -16,9 +16,9 @@ fs2-blobstore is deployed to maven central, add to build.sbt:
 
 ```sbtshell
 libraryDependencies ++= Seq(
-  "com.lendup.fs2-blobstore" %% "core" % "0.1.2",
-  "com.lendup.fs2-blobstore" %% "sftp" % "0.1.2",
-  "com.lendup.fs2-blobstore" %% "s3" % "0.1.2"
+  "com.lendup.fs2-blobstore" %% "core" % "0.1.3",
+  "com.lendup.fs2-blobstore" %% "sftp" % "0.1.3",
+  "com.lendup.fs2-blobstore" %% "s3" % "0.1.3"
 )
 ```
 
@@ -169,12 +169,3 @@ separators when referring to filesystem paths.
      val store: Store[IO] = SftpStore("root/server/path", channel)
      ``` 
 
-
-## TODO:
-1. `Store.put` should have an additional `opts` parameter that each store 
-implementation can customize when creating new files, for `S3Store` it would 
-be AWS's `com.amazonaws.services.s3.model.ObjectMetadata`, and for `FileStore` 
-it would be `Seq[java.nio.file.StandardOpenOption]`
-1. `Store.listRecursively` to return all leafs in the file directory structure, 
-both S3 and nio support this natively.
-1. `MemoryStore` an in-memory implementation of `Store`
