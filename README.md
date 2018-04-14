@@ -1,7 +1,7 @@
 # fs2-blobstore
 
 [![Build Status](https://travis-ci.org/lendup/fs2-blobstore.svg?branch=master)](https://travis-ci.org/lendup/fs2-blobstore)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.lendup.fs2-blobstore/core_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.lendup.fs2-blobstore/core)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.lendup.fs2-blobstore/core_2.12/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.lendup.fs2-blobstore%22)
 [![codecov](https://codecov.io/gh/lendup/fs2-blobstore/branch/master/graph/badge.svg)](https://codecov.io/gh/lendup/fs2-blobstore)
 [![Join the chat at https://gitter.im/fs2-blobstore/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/fs2-blobstore/Lobby)
 
