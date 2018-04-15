@@ -84,7 +84,8 @@ case class S3Store[F[_]](s3: AmazonS3, sse: Boolean = false)(implicit F: Effect[
         ()
       })
 
-      val writeBytes: Stream[F, Unit] = _writeAllToOutputStream1(in, ios._1).stream
+      val writeBytes: Stream[F, Unit] =
+        _writeAllToOutputStream1(in, ios._1).stream ++ Stream.eval(F.delay(ios._1.close()))
 
       putToS3 concurrently writeBytes
     }

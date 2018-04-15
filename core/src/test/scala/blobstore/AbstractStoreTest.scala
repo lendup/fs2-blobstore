@@ -261,9 +261,26 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
       .compile.drain.unsafeRunSync().isEmpty must be(true)
   }
 
+  it should "support putting content with no size" in {
+    val dir: Path = dirPath("put-no-size")
+    val path = dir / "no-size.txt"
+    val exp = contents("put without size")
+    val test = for {
+      _ <- fs2.Stream(exp)
+        .covary[IO]
+        .through(fs2.text.utf8Encode)
+        .to(store.put(path))
+        .compile.drain
+      res <- store.getContents(path)
+      _ <- store.remove(path)
+    } yield res must be(exp)
+
+    test.unsafeRunSync()
+  }
+
   def dirPath(name: String): Path = Path(s"$root/test-$testRun/$name/")
 
-  def contents(filename: String) = s"file contents to upload: $filename"
+  def contents(filename: String): String = s"file contents to upload: $filename"
 
   def writeFile(store: Store[IO], tmpDir: Path)(filename: String): Path = {
     val path = tmpDir / filename
@@ -273,12 +290,16 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
-    val clean = List("transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src",
-      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst")
-      .map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"), transferStoreRootDir)
+    val clean = List(
+      "transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src", "put-no-size",
+      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst"
+    ).map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
+      List(
+        transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"),
+        transferStoreRootDir
+      )
 
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
+    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => })
   }
 
 }
