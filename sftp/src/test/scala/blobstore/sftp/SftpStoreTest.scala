@@ -57,7 +57,7 @@ class SftpStoreTest extends AbstractStoreTest {
       case _: Throwable =>
     }
 
-    val clean = List("all", "list-many", "move-keys", "list-dirs/subdir", "list-dirs",
+    val clean = List("all", "list-many", "move-keys", "list-dirs/subdir", "list-dirs", "put-no-size",
       "transfer-dir-to-dir-dst", "transfer-file-to-file-dst", "transfer-single-file-to-dir-dst",
       "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src", "copy-dir-to-dir-src",
       "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
