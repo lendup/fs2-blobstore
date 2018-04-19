@@ -60,8 +60,8 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   it should "move keys" in {
     val dir: Path = dirPath("move-keys")
-    val src = writeFile(store, dir)(s"src-${System.currentTimeMillis}.txt")
-    val dst = dir / s"dst-${System.currentTimeMillis}.txt"
+    val src = writeFile(store, dir)(s"src/${System.currentTimeMillis}.txt")
+    val dst = dir / s"dst/${System.currentTimeMillis}.txt"
 
     val test = for {
       l1 <- store.listAll(src)
