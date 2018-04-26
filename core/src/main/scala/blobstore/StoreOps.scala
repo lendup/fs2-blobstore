@@ -58,7 +58,7 @@ trait StoreOps {
       * @param path Path to write to
       * @return Sink[F, Byte] buffered sink
       */
-    def bufferedPut(path: Path)(implicit ec: ExecutionContext, ef: Effect[F]): Sink[F, Byte] = in =>
+    def bufferedPut(path: Path)(implicit F: Effect[F], ec: ExecutionContext): Sink[F, Byte] = in =>
       in.through(bufferToDisk(4096)).flatMap { case (n, s) =>
         s.to(store.put(path.copy(size = Some(n))))
       }

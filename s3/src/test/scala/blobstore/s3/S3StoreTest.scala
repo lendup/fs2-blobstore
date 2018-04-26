@@ -20,7 +20,7 @@ import cats.effect.IO
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 
-@org.scalatest.Ignore
+@IntegrationTest
 class S3StoreTest extends AbstractStoreTest {
 
   import scala.concurrent.ExecutionContext.Implicits.global

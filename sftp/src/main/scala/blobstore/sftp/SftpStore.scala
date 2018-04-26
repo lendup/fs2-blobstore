@@ -16,17 +16,17 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package sftp
 
-import java.nio.file.Files
 import java.util.Date
-
-import scala.collection.JavaConverters._
 import cats.effect.Effect
 import com.jcraft.jsch._
-
 import scala.util.Try
-import implicits._
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 
-case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Effect[F]) extends Store[F] {
+case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Effect[F], ec: ExecutionContext)
+  extends Store[F] {
+  import implicits._
+
   import Path.SEP
 
   /**
@@ -72,15 +72,12 @@ case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Ef
 
   override def put(path: Path): fs2.Sink[F, Byte] = { in =>
     val put = F.delay {
-      _pathToString(path).split(SEP.toChar).drop(1).foldLeft("") { case (acc, s) =>
-        Try(channel.mkdir(acc))
-        s"$acc$SEP$s"
-      }
-
+      mkdirs(path)
       // scalastyle:off
       channel.put(/* dst */ path, /* monitor */ null, /* mode */ ChannelSftp.OVERWRITE, /* offset */ 0)
       // scalastyle:on
     }
+
     val pull = for {
       os <- fs2.Pull.acquireCancellable(put)(ch => F.delay(ch.close()))
       _ <- _writeAllToOutputStream1(in, os.resource)
@@ -89,22 +86,31 @@ case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Ef
     pull.stream
   }
 
-  override def move(src: Path, dst: Path): F[Unit] = F.delay(channel.rename(src, dst))
+  override def move(src: Path, dst: Path): F[Unit] = F.delay {
+    mkdirs(dst)
+    channel.rename(src, dst)
+  }
 
   override def copy(src: Path, dst: Path): F[Unit] = {
-    val cp = for {
-      tmp <- fs2.Stream.eval(F.delay(Files.createTempFile("sftp-copy", ".tmp")))
-      _ <- (get(src) to fs2.io.file.writeAll(tmp)).last
-      _ <- (fs2.io.file.readAll(tmp, 4096) to put(dst)).last
-      _ <- fs2.Stream.eval(F.delay(Files.deleteIfExists(tmp))).handleErrorWith(_ => fs2.Stream.empty)
+    val s = for {
+      _ <- fs2.Stream.eval(F.delay(mkdirs(dst)))
+      _ <- get(src).to(this.bufferedPut(dst))
     } yield ()
 
-    cp.compile.drain
+    s.compile.drain
   }
 
   override def remove(path: Path): F[Unit] = F.delay(channel.rm(path))
 
   implicit def _pathToString(path: Path): String = s"$absRoot$SEP${path.root}$SEP${path.key}"
+
+  private def mkdirs(path: Path): Unit = {
+    _pathToString(path).split(SEP.toChar).drop(1).foldLeft("") { case (acc, s) =>
+      Try(channel.mkdir(acc))
+      s"$acc$SEP$s"
+    }
+    ()
+  }
 }
 
 object SftpStore {
@@ -113,7 +119,8 @@ object SftpStore {
     * @param fa F[ChannelSftp] how to connect to SFTP server
     * @return Stream[ F, SftpStore[F] ] stream with one SftpStore, sftp channel will disconnect once stream is done.
     */
-  def apply[F[_]](absRoot: String, fa: F[ChannelSftp])(implicit F: Effect[F]): fs2.Stream[F, SftpStore[F]] = {
+  def apply[F[_]](absRoot: String, fa: F[ChannelSftp])(implicit F: Effect[F], ec: ExecutionContext)
+  : fs2.Stream[F, SftpStore[F]] = {
     fs2.Stream.bracket(fa)(
       channel => fs2.Stream.eval(F.delay(SftpStore[F](absRoot, channel))),          // consume
       channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() } // shutdown
