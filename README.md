@@ -167,5 +167,16 @@ separators when referring to filesystem paths.
      channel.connect(5000)
 
      val store: Store[IO] = SftpStore("root/server/path", channel)
-     ``` 
+     ```
+   * [BoxStore](box/src/main/scala/blobstore/box/BoxStore.scala) backed by
+   a [BoxAPIConnection](https://github.com/box/box-java-sdk/blob/master/src/main/java/com/box/sdk/BoxAPIConnection.java),
+   which has multiple options for authentication. This requires that you have a Box app set up already. 
+   See [Box SDK documentation](https://github.com/box/box-java-sdk) for more details:
+     ```scala
+     import blobstore.Store, blobstore.box.BoxStore
+     import com.box.sdk.BoxAPIConnection
+
+     val api = new BoxAPIConnection("myDeveloperToken")
+     val store: Store[IO] = BoxStore[IO](api, "rootFolderId")
+     ```
 
