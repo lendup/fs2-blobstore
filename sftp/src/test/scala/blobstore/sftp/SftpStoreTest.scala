@@ -22,8 +22,9 @@ import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
 import scala.util.control.NonFatal
 
-@org.scalatest.Ignore
+@IntegrationTest
 class SftpStoreTest extends AbstractStoreTest {
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   val (channel, session) = try {
     val jsch = new JSch()
@@ -42,9 +43,8 @@ class SftpStoreTest extends AbstractStoreTest {
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  override val store: Store[IO] = SftpStore(rootDir.toString, channel)
+  override val store: Store[IO] = SftpStore[IO](rootDir.toString, channel)
   override val root: String = "sftp_tests"
-
 
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
@@ -57,10 +57,10 @@ class SftpStoreTest extends AbstractStoreTest {
       case _: Throwable =>
     }
 
-    val clean = List("all", "list-many", "move-keys", "list-dirs/subdir", "list-dirs", "put-no-size",
-      "transfer-dir-to-dir-dst", "transfer-file-to-file-dst", "transfer-single-file-to-dir-dst",
-      "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src", "copy-dir-to-dir-src",
-      "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
+    val clean = List("all", "list-many", "move-keys/src", "move-keys/dst", "move-keys", "list-dirs/subdir",
+      "list-dirs", "put-no-size", "transfer-dir-to-dir-dst", "transfer-file-to-file-dst",
+      "transfer-single-file-to-dir-dst", "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src",
+      "copy-dir-to-dir-src", "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
       List(rootDir.resolve(s"$root/test-$testRun"), rootDir.resolve(s"$root"), rootDir)
 
     clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })

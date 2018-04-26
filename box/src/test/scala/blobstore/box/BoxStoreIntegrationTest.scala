@@ -1,7 +1,6 @@
-package blobstore.box
+package blobstore
+package box
 
-
-import blobstore.{AbstractStoreTest, Store}
 import cats.effect.IO
 import com.box.sdk.BoxAPIConnection
 
@@ -9,7 +8,7 @@ import com.box.sdk.BoxAPIConnection
   * Run these with extreme caution. If configured properly, this test as will attempt to write to your Box server.
   * See AbstractStoreTest to see what operations performed here.
   */
-@org.scalatest.Ignore
+@IntegrationTest
 class BoxStoreIntegrationTest extends AbstractStoreTest {
 
   import scala.concurrent.ExecutionContext.Implicits.global

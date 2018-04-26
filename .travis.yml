@@ -17,12 +17,12 @@ script:
 - |
   if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
     if [ $RELEASE_ON_PUSH = 'false' ]; then
-      sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+      sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
     else
-      sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+      sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
     fi
   else
-    sbt ++$TRAVIS_SCALA_VERSION test coverageReport
+    sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
   fi
 - find $HOME/.sbt -name "*.lock" | xargs rm
 - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
