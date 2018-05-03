@@ -29,7 +29,7 @@ import com.amazonaws.services.s3.model.{ListObjectsRequest, ObjectListing, Objec
 
 import scala.concurrent.ExecutionContext
 
-case class S3Store[F[_]](s3: AmazonS3, sse: Boolean = false)(implicit F: Effect[F], ec: ExecutionContext) extends Store[F] {
+case class S3Store[F[_]](s3: AmazonS3, sse: Option[String] = None)(implicit F: Effect[F], ec: ExecutionContext) extends Store[F] {
 
   // convert ObjectListing to Segment[Path, Unit]
   private def _segment(ol: ObjectListing): Segment[Path, Unit] = {
@@ -79,7 +79,7 @@ case class S3Store[F[_]](s3: AmazonS3, sse: Boolean = false)(implicit F: Effect[
       val putToS3 = Stream.eval(F.delay {
         val meta = new ObjectMetadata()
         path.size.foreach(meta.setContentLength)
-        if (sse) meta.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
+        sse.foreach(meta.setSSEAlgorithm)
         s3.putObject(path.root, path.key, ios._2, meta)
         ()
       })
@@ -112,15 +112,13 @@ object S3Store {
   /**
     * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
     *
-    * @param fa F[AmazonS3] how to connect AWS S3 client
-    * @param sse Boolean true to force all writes to use SSE
+    * @param fa  F[AmazonS3] how to connect AWS S3 client
+    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
   def apply[F[_]](fa: F[AmazonS3], sse: Boolean)(implicit F: Effect[F], ec: ExecutionContext): Stream[F, S3Store[F]] = {
-    fs2.Stream.bracket(fa)(
-      client => fs2.Stream.eval(F.delay(S3Store[F](client, sse))), // consume
-      client => F.delay(client.shutdown())                         // shutdown
-    )
+    val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
+    apply(fa, opt)
   }
 
   /**
@@ -129,13 +127,54 @@ object S3Store {
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
     *
-    * @param sse Boolean true to force all writes to use SSE
+    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
   def apply[F[_]](sse: Boolean)(implicit F: Effect[F], ec: ExecutionContext): Stream[F, S3Store[F]] = {
-    fs2.Stream.bracket(F.delay(AmazonS3ClientBuilder.standard().build()))(
-      client => fs2.Stream.eval(F.delay(S3Store[F](client, sse))), // consume
-      client => F.delay(client.shutdown())                         // shutdown
+    val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), opt)
+  }
+
+  /**
+    * Safely initialize S3Store using AmazonS3ClientBuilder.standard() and shutdown client upon finish.
+    *
+    * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
+    *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
+    *
+    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
+    * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
+    */
+  def apply[F[_]](sse: String)(implicit F: Effect[F], ec: ExecutionContext): Stream[F, S3Store[F]] =
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), Option(sse))
+
+
+  /**
+    * Safely initialize S3Store using AmazonS3ClientBuilder.standard() and shutdown client upon finish.
+    *
+    * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
+    *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
+    *
+    * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
+    */
+  def apply[F[_]]()(implicit F: Effect[F], ec: ExecutionContext): Stream[F, S3Store[F]] =
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), None)
+
+
+
+  /**
+    * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
+    *
+    * @param fa F[AmazonS3] how to connect AWS S3 client
+    * @param sse Option[String] sse algorithm
+    * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
+    */
+  def apply[F[_]](fa: F[AmazonS3], sse: Option[String])(implicit F: Effect[F], ec: ExecutionContext)
+  : Stream[F, S3Store[F]] = {
+    fs2.Stream.bracket(fa)(
+      client => {
+        fs2.Stream.eval(F.delay(S3Store[F](client, sse)))
+      },
+      client => F.delay(client.shutdown())
     )
   }
 
