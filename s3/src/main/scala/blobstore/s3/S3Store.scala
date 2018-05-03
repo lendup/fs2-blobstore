@@ -25,7 +25,7 @@ import fs2.{Segment, Sink, Stream}
 
 import scala.collection.JavaConverters._
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
-import com.amazonaws.services.s3.model.{ListObjectsRequest, ObjectListing, ObjectMetadata}
+import com.amazonaws.services.s3.model.{CopyObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata}
 
 import scala.concurrent.ExecutionContext
 
@@ -103,7 +103,12 @@ case class S3Store[F[_]](s3: AmazonS3, sse: Option[String] = None)(implicit F: E
     _ <- remove(src)
   } yield ()
 
-  override def copy(src: Path, dst: Path): F[Unit] = F.delay(s3.copyObject(src.root, src.key, dst.root, dst.key)).void
+  override def copy(src: Path, dst: Path): F[Unit] = F.delay {
+    val meta = new ObjectMetadata()
+    sse.foreach(meta.setSSEAlgorithm)
+    val req = new CopyObjectRequest(src.root, src.key, dst.root, dst.key).withNewObjectMetadata(meta)
+    s3.copyObject(req)
+  }.void
 
   override def remove(path: Path): F[Unit] = F.delay(s3.deleteObject(path.root, path.key))
 }
