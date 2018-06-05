@@ -2,6 +2,7 @@ name := "fs2-blobstore"
 
 inThisBuild(Seq(
   scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.12", "2.12.4"),
   organization := "com.lendup.fs2-blobstore"
 ))
 
