@@ -16,6 +16,8 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package s3
 
+//import java.nio.file.Paths
+
 import cats.effect.IO
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
@@ -39,6 +41,18 @@ class S3StoreTest extends AbstractStoreTest {
 
   override val store: Store[IO] = S3Store[IO](client)
   override val root: String = "blobstore-test-bucket"
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    try {
+      client.createBucket(root)
+    } catch {
+      case e: com.amazonaws.services.s3.model.AmazonS3Exception if e.getMessage.contains("BucketAlreadyOwnedByYou") =>
+        // noop
+    }
+    ()
+  }
+
 
   override def afterAll(): Unit = {
     super.afterAll()

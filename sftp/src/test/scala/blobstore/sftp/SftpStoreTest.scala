@@ -16,14 +16,12 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package sftp
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
 import java.util.Properties
 
 import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
-import scala.util.control.NonFatal
 
-@IntegrationTest
 class SftpStoreTest extends AbstractStoreTest {
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -45,11 +43,13 @@ class SftpStoreTest extends AbstractStoreTest {
     (channel, session)
   } catch {
     // this is UGLY!!! but just want to ignore errors if you don't have sftp container running
-    case _: Throwable =>  (null, null)
+    case e: Throwable =>
+      e.printStackTrace()
+      (null, null)
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  override val store: Store[IO] = SftpStore[IO](rootDir.toString, channel)
+  override val store: Store[IO] = SftpStore[IO]("/", channel)
   override val root: String = "sftp_tests"
 
   // remove dirs created by AbstractStoreTest
@@ -63,14 +63,7 @@ class SftpStoreTest extends AbstractStoreTest {
       case _: Throwable =>
     }
 
-    val clean = List("all", "list-many", "move-keys/src", "move-keys/dst", "move-keys", "list-dirs/subdir",
-      "list-dirs", "put-no-size", "transfer-dir-to-dir-dst", "transfer-file-to-file-dst",
-      "transfer-single-file-to-dir-dst", "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src",
-      "copy-dir-to-dir-src", "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(rootDir.resolve(s"$root/test-$testRun"), rootDir.resolve(s"$root"), rootDir)
-
-    // noinspection ScalaStyle
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
+    cleanup(rootDir.resolve(s"$root/test-$testRun"))
 
   }
 

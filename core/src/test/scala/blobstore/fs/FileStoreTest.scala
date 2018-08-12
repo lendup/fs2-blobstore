@@ -16,8 +16,7 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package fs
 
-import java.nio.file.{Files, Paths, Path => NioPath}
-import scala.util.control.NonFatal
+import java.nio.file.{Paths, Path => NioPath}
 import cats.effect.IO
 
 class FileStoreTest extends AbstractStoreTest {
@@ -35,14 +34,7 @@ class FileStoreTest extends AbstractStoreTest {
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
     super.afterAll()
-
-    val clean = List("all", "list-many", "move-keys/src", "move-keys/dst", "move-keys", "list-dirs/subdir",
-      "list-dirs", "put-no-size", "transfer-dir-to-dir-dst", "transfer-file-to-file-dst",
-      "transfer-single-file-to-dir-dst", "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src",
-      "copy-dir-to-dir-src", "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(rootDir.resolve(s"$root/test-$testRun"), rootDir.resolve(s"$root"), rootDir)
-
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
+    cleanup(rootDir.resolve(s"$root/test-$testRun"))
   }
 
 }
