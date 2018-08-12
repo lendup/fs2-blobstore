@@ -17,6 +17,7 @@ package blobstore
 package sftp
 
 import java.nio.file.{Files, Paths}
+import java.util.Properties
 
 import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
@@ -28,17 +29,22 @@ class SftpStoreTest extends AbstractStoreTest {
 
   val (channel, session) = try {
     val jsch = new JSch()
-    jsch.setKnownHosts("~/.ssh/known_hosts")
-    jsch.addIdentity("~/.ssh/id_rsa_tmp")
 
-    val session = jsch.getSession("127.0.0.1")
+    val session = jsch.getSession("blob", "sftp-container", 22)
     session.setTimeout(10000)
+    session.setPassword("password")
+
+    val config = new Properties
+    config.put("StrictHostKeyChecking", "no")
+    session.setConfig(config)
+
     session.connect()
 
     val channel = session.openChannel("sftp").asInstanceOf[ChannelSftp]
     channel.connect(10000)
     (channel, session)
   } catch {
+    // this is UGLY!!! but just want to ignore errors if you don't have sftp container running
     case _: Throwable =>  (null, null)
   }
 
@@ -63,6 +69,7 @@ class SftpStoreTest extends AbstractStoreTest {
       "copy-dir-to-dir-src", "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
       List(rootDir.resolve(s"$root/test-$testRun"), rootDir.resolve(s"$root"), rootDir)
 
+    // noinspection ScalaStyle
     clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
 
   }

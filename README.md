@@ -85,32 +85,31 @@ consistent with all other `Store` implementations.
 
 **Running Tests:**
 
-Tests for core module have no dependencies and can be run with `sbt core/test`.
-These include `FileStore` and `Path` tests.
-
-Currently, tests for `SftpStore` and `S3Store` are annotated with `org.scalatest.Ignore`
-because they require a running SFTP server and AWS bucket and credentials respectively.
-To run either one of these tests locally please remove annotation but make sure you do
-not push this change as it will make tests fail in travis (we are working to get these
-tests set up to run in ci pipeline soon).
-
-To run `S3StoreTest` locally you need to provide a bucket with write access and configure
-AWS credentials per [default credentials chain](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html).
+Tests are set up to run via docker-compose:
 
 ```bash
-S3_STORE_TEST_BUCKET=your-bucket sbt s3/test
+docker-compose run --rm sbt "testOnly * -- -l blobstore.IntegrationTest"
 ```
 
-To run `SftpStoreTest` it is required to set up a local SFTP server that:
+This will start a [minio](https://www.minio.io/docker.html) (Amazon S3 compatible 
+object storage server) and SFTP containers and run all tests not annotated as 
+`@IntegrationTest`.
 
-1. Bound to `127.0.0.1` on standard SSH port 22 (mac or linux users can enable SSH server)
-1. Server public key is listed in `~/.ssh/known_hosts`
-1. Server recognizes current user and public key included in authorized users
-1. Corresponding private key is stored in `~/.ssh/id_rsa_tmp`
+Yes, we understand `SftpStoreTest` and `S3StoreTest` are also _integration tests_ 
+because they connect to external services, but we don't mark them as such because 
+we found these containers that allow to run them along unit tests and we want to 
+exercise as much of the store code as possible.  
+
+Currently, only tests for `BoxStore` are annotated with `@IntegrationTest` because 
+we have not found a box docker image. Integration tests do not run in our travis 
+builds. To run `BoxStore` integration tests locally you need to provide env vars 
+for `BOX_TEST_BOX_DEV_TOKEN` and `BOX_TEST_ROOT_FOLDER_ID`. Run box tests with:
 
 ```bash
-sbt sftp/test
+sbt box/test
 ```
+
+**Note:** this will exercise `AbstractStoreTest` tests against your box.com account.
 
 
 ### Path Abstraction

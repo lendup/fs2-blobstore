@@ -1,0 +1,38 @@
+---
+version: "2"
+
+services:
+  sftp:
+    image: atmoz/sftp
+
+    volumes:
+      - ./tmp/sftp-store-root:/home/blob
+
+    command: "blob:password"
+
+  minio:
+    image: minio/minio
+
+    environment:
+      - MINIO_ACCESS_KEY=my_access_key
+      - MINIO_SECRET_KEY=my_secret_key
+
+    volumes:
+      - ./tmp/s3-store-root:/data
+
+    command: "server /data"
+
+  sbt:
+    image: hseeberger/scala-sbt:8u171_2.12.6_1.2.1
+
+    entrypoint: /usr/bin/sbt
+    working_dir: /opt/app
+
+    volumes:
+    - ~/.sbt:/root/.sbt
+    - ~/.ivy2:/root/.ivy2
+    - .:/opt/app
+
+    links:
+      - sftp:sftp-container
+      - minio:minio-container

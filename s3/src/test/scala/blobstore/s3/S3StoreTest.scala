@@ -17,16 +17,28 @@ package blobstore
 package s3
 
 import cats.effect.IO
+import com.amazonaws.ClientConfiguration
+import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
+import com.amazonaws.client.builder.AwsClientBuilder
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.s3.AmazonS3ClientBuilder
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 
-@IntegrationTest
 class S3StoreTest extends AbstractStoreTest {
 
   import scala.concurrent.ExecutionContext.Implicits.global
-  private val client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build()
+
+  val credentials = new BasicAWSCredentials("my_access_key", "my_secret_key")
+  val clientConfiguration = new ClientConfiguration();
+  clientConfiguration.setSignerOverride("AWSS3V4SignerType");
+  private val client: AmazonS3 = AmazonS3ClientBuilder.standard()
+    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://minio-container:9000", Regions.US_EAST_1.name()))
+    .withPathStyleAccessEnabled(true)
+    .withClientConfiguration(clientConfiguration)
+    .withCredentials(new AWSStaticCredentialsProvider(credentials))
+    .build()
+
   override val store: Store[IO] = S3Store[IO](client)
-  override val root: String = System.getenv("S3_STORE_TEST_BUCKET")
+  override val root: String = "blobstore-test-bucket"
 
   override def afterAll(): Unit = {
     super.afterAll()
