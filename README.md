@@ -179,3 +179,4 @@ separators when referring to filesystem paths.
      val store: Store[IO] = BoxStore[IO](api, "rootFolderId")
      ```
 
+
