@@ -100,13 +100,16 @@ because they connect to external services, but we don't mark them as such becaus
 we found these containers that allow to run them along unit tests and we want to 
 exercise as much of the store code as possible.  
 
-Currently, only tests for `BoxStore` are annotated with `@IntegrationTest` because 
-we have not found a box docker image. Integration tests do not run in our travis 
-builds. To run `BoxStore` integration tests locally you need to provide env vars 
-for `BOX_TEST_BOX_DEV_TOKEN` and `BOX_TEST_ROOT_FOLDER_ID`. Run box tests with:
+Currently, tests for `SftpStore` and `BoxStore` are annotated with `@IntegrationTest`
+because: (1) SFTP tests fail to run against sftp container in travis, and (2) we
+have not found a box docker image. To run `BoxStore` integration tests locally
+you need to provide env vars for `BOX_TEST_BOX_DEV_TOKEN` and `BOX_TEST_ROOT_FOLDER_ID`.
+
+Run box/sftp tests with:
 
 ```bash
 sbt box/test
+docker-compose run --rm sbt sftp/test
 ```
 
 **Note:** this will exercise `AbstractStoreTest` tests against your box.com account.
