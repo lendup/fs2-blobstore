@@ -22,7 +22,6 @@ import java.util.Properties
 import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
 
-@IntegrationTest
 class SftpStoreTest extends AbstractStoreTest {
   import scala.concurrent.ExecutionContext.Implicits.global
 
