@@ -1,8 +1,12 @@
 language: scala
 
+sudo: required
+
+services:
+- docker
+
 scala:
-- 2.11.12
-- 2.12.4
+- 2.12.6
 
 jdk:
 - oraclejdk8
@@ -13,20 +17,23 @@ branches:
 
 before_script:
 - if [ $TRAVIS_PULL_REQUEST = 'false' ]; then git checkout -qf $TRAVIS_BRANCH; fi
+- mkdir -p tmp/file-store-root/file_tests tmp/s3-store-root/blobstore-test-bucket tmp/transfer-store-root/sftp_tests tmp/transfer-store-root/file_tests tmp/transfer-store-root/blobstore-test-bucket tmp/sftp-store-root/sftp_tests
+- docker-compose run --rm --entrypoint "ls -la /home/blob/" sftp
 
 script:
 - |
   if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
     if [ $RELEASE_ON_PUSH = 'false' ]; then
-      sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
+      docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
     else
-      sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
+      docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
     fi
   else
-    sbt ++$TRAVIS_SCALA_VERSION "testOnly * -- -l blobstore.IntegrationTest" coverageReport
+    docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
   fi
-- find $HOME/.sbt -name "*.lock" | xargs rm
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
+- docker-compose rm -svf
 
 cache:
   directories:
@@ -34,8 +41,9 @@ cache:
   - "$HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION"
 
 after_success:
-- find $HOME/.sbt -name "*.lock" | xargs rm
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
+- docker-compose rm -svf
 - bash <(curl -s https://codecov.io/bash) -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
 
 env:

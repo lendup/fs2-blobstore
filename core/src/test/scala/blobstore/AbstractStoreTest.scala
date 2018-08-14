@@ -16,15 +16,13 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 
 import java.util.UUID
-import java.nio.file.{Files, Paths, Path => NioPath}
+import java.nio.file.{Paths, Path => NioPath}
 
 import blobstore.fs.FileStore
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import cats.effect.IO
 import cats.implicits._
 import implicits._
-
-import scala.util.control.NonFatal
 
 trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
 
@@ -289,17 +287,27 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   }
 
   // remove dirs created by AbstractStoreTest
-  override def afterAll(): Unit = {
-    val clean = List(
-      "transfer-dir-to-dir-src", "transfer-file-to-file-src", "transfer-single-file-to-dir-src", "put-no-size",
-      "transfer-dir-rec-src/subdir/", "transfer-dir-rec-src", "copy-dir-to-dir-src", "copy-dir-to-dir-dst"
-    ).map(t => transferStoreRootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(
-        transferStoreRootDir.resolve(s"$root/test-$testRun"), transferStoreRootDir.resolve(s"$root"),
-        transferStoreRootDir
-      )
+  override def afterAll(): Unit = cleanup(transferStoreRootDir.resolve(s"$root/test-$testRun/"))
 
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => })
+  def cleanup(root: NioPath): Unit = {
+
+    import java.io.IOException
+    import java.nio.file.{FileVisitor, FileVisitResult, Files, SimpleFileVisitor, Path => NioPath}
+    import java.nio.file.attribute.BasicFileAttributes
+
+    val fv: FileVisitor[NioPath] = new SimpleFileVisitor[NioPath]() {
+      override def postVisitDirectory(dir: NioPath, exc: IOException): FileVisitResult = {
+        Files.delete(dir)
+        FileVisitResult.CONTINUE
+      }
+
+      override def visitFile(file: NioPath, attrs: BasicFileAttributes): FileVisitResult = {
+        Files.delete(file)
+        FileVisitResult.CONTINUE
+      }
+    }
+
+    try { Files.walkFileTree(root, fv) ; () } catch { case _: Throwable => }
   }
 
 }

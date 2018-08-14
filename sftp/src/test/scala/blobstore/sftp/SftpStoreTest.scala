@@ -16,11 +16,11 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package sftp
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
+import java.util.Properties
 
 import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
-import scala.util.control.NonFatal
 
 @IntegrationTest
 class SftpStoreTest extends AbstractStoreTest {
@@ -28,23 +28,41 @@ class SftpStoreTest extends AbstractStoreTest {
 
   val (channel, session) = try {
     val jsch = new JSch()
-    jsch.setKnownHosts("~/.ssh/known_hosts")
-    jsch.addIdentity("~/.ssh/id_rsa_tmp")
 
-    val session = jsch.getSession("127.0.0.1")
+    val session = jsch.getSession("blob", "sftp-container", 22)
     session.setTimeout(10000)
+    session.setPassword("password")
+
+    val config = new Properties
+    config.put("StrictHostKeyChecking", "no")
+    session.setConfig(config)
+
     session.connect()
 
     val channel = session.openChannel("sftp").asInstanceOf[ChannelSftp]
     channel.connect(10000)
     (channel, session)
   } catch {
-    case _: Throwable =>  (null, null)
+    // this is UGLY!!! but just want to ignore errors if you don't have sftp container running
+    case e: Throwable =>
+      e.printStackTrace()
+      (null, null)
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  override val store: Store[IO] = SftpStore[IO](rootDir.toString, channel)
+  override val store: Store[IO] = SftpStore[IO]("/", channel)
   override val root: String = "sftp_tests"
+
+  /**
+    * attempting to list root dir before any sftp tests begin to confirm dirs have been created correctly
+    */
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    import implicits._
+    val l = store.listAll(Path(s"")).unsafeRunSync()
+    assert(l.size == 1, s"root dir should only contain one element: $l")
+    ()
+  }
 
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
@@ -57,13 +75,7 @@ class SftpStoreTest extends AbstractStoreTest {
       case _: Throwable =>
     }
 
-    val clean = List("all", "list-many", "move-keys/src", "move-keys/dst", "move-keys", "list-dirs/subdir",
-      "list-dirs", "put-no-size", "transfer-dir-to-dir-dst", "transfer-file-to-file-dst",
-      "transfer-single-file-to-dir-dst", "transfer-dir-rec-dst/subdir/", "transfer-dir-rec-dst", "rm-dir-to-dir-src",
-      "copy-dir-to-dir-src", "copy-dir-to-dir-dst").map(t => rootDir.resolve(s"$root/test-$testRun/$t")) ++
-      List(rootDir.resolve(s"$root/test-$testRun"), rootDir.resolve(s"$root"), rootDir)
-
-    clean.foreach(p => try { Files.delete(p) } catch { case NonFatal(_) => /* noop */ })
+    cleanup(rootDir.resolve(s"$root/test-$testRun"))
 
   }
 
