@@ -31,8 +31,8 @@ script:
   else
     docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
   fi
-- find $HOME/.sbt -name "*.lock" | xargs rm
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
 - docker-compose rm -svf
 
 cache:
@@ -41,8 +41,8 @@ cache:
   - "$HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION"
 
 after_success:
-- find $HOME/.sbt -name "*.lock" | xargs rm
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
 - docker-compose rm -svf
 - bash <(curl -s https://codecov.io/bash) -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
 
