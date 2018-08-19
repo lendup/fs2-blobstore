@@ -52,17 +52,6 @@ class SftpStoreTest extends AbstractStoreTest {
   override val store: Store[IO] = SftpStore[IO]("/", channel)
   override val root: String = "sftp_tests"
 
-  /**
-    * attempting to list root dir before any sftp tests begin to confirm dirs have been created correctly
-    */
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    import implicits._
-    val l = store.listAll(Path(s"")).unsafeRunSync()
-    assert(l.size == 1, s"root dir should only contain one element: $l")
-    ()
-  }
-
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
     super.afterAll()
