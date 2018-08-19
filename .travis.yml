@@ -17,8 +17,6 @@ branches:
 
 before_script:
 - if [ $TRAVIS_PULL_REQUEST = 'false' ]; then git checkout -qf $TRAVIS_BRANCH; fi
-- mkdir -p tmp/file-store-root/file_tests tmp/s3-store-root/blobstore-test-bucket tmp/transfer-store-root/sftp_tests tmp/transfer-store-root/file_tests tmp/transfer-store-root/blobstore-test-bucket tmp/sftp-store-root/sftp_tests
-- docker-compose run --rm --entrypoint "ls -la /home/blob/" sftp
 
 script:
 - |

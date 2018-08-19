@@ -22,7 +22,6 @@ import java.util.Properties
 import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
 
-@IntegrationTest
 class SftpStoreTest extends AbstractStoreTest {
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -52,17 +51,6 @@ class SftpStoreTest extends AbstractStoreTest {
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
   override val store: Store[IO] = SftpStore[IO]("/", channel)
   override val root: String = "sftp_tests"
-
-  /**
-    * attempting to list root dir before any sftp tests begin to confirm dirs have been created correctly
-    */
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    import implicits._
-    val l = store.listAll(Path(s"")).unsafeRunSync()
-    assert(l.size == 1, s"root dir should only contain one element: $l")
-    ()
-  }
 
   // remove dirs created by AbstractStoreTest
   override def afterAll(): Unit = {
