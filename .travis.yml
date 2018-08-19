@@ -43,7 +43,7 @@ after_success:
 - find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
 - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
 - docker-compose rm -svf
-- bash <(curl -s https://codecov.io/bash) -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
+- bash <(curl -s https://codecov.io/bash) -cF "scala-$TRAVIS_SCALA_VERSION"  -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
 
 env:
   global:
