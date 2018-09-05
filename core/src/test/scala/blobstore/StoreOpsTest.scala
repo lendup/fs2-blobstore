@@ -3,16 +3,20 @@ package blobstore
 import java.nio.charset.Charset
 import java.nio.file.Files
 
-import cats.effect.IO
+import cats.effect.{IO, Sync}
+import cats.effect.laws.util.{TestContext, TestInstances}
 import cats.implicits._
 import fs2.Sink
 import org.scalatest.{Assertion, FlatSpec, MustMatchers}
 import implicits._
 
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.ExecutionContext.Implicits.global
 
-class StoreOpsTest extends FlatSpec with MustMatchers {
+class StoreOpsTest extends FlatSpec with MustMatchers with TestInstances {
+
+  implicit val ec = TestContext()
+  implicit val cs = ec.contextShift[IO]
+  implicit val s = Sync[IO]
 
   behavior of "PutOps"
   it should "buffer contents and compute size before calling Store.put" in {
@@ -29,12 +33,10 @@ class StoreOpsTest extends FlatSpec with MustMatchers {
     val store = DummyStore(_.size must be(Some(bytes.length)))
 
     fs2.Stream.bracket(IO(Files.createTempFile("test-file", ".bin")))(
-      p => {
-        fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAllAsync(p)).drain ++
-          fs2.Stream.eval(store.put(p, Path("path/to/file.txt")))
-      },
-      p => IO(p.toFile.delete).void
-    ).compile.drain.unsafeRunSync()
+      p => IO(p.toFile.delete).void).flatMap(p => {
+      fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAll(p, ec)).drain ++
+        fs2.Stream.eval(store.put(p, Path("path/to/file.txt")))
+    }).compile.drain.unsafeRunSync()
     store.buf.toArray must be(bytes)
   }
 

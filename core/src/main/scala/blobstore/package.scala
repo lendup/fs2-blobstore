@@ -13,13 +13,13 @@ Copyright 2018 LendUp Global, Inc.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 import java.io.OutputStream
 import java.nio.file.Files
 
-import cats.effect.{Effect, Sync}
-import cats.implicits._
+import cats.effect.{ConcurrentEffect, ContextShift, Effect, Sync}
 import fs2.{Pipe, Pull, Stream}
-
+import cats.implicits._
 import scala.concurrent.ExecutionContext
 
 package object blobstore {
@@ -31,15 +31,13 @@ package object blobstore {
     }
   }
 
-  protected[blobstore] def bufferToDisk[F[_]: Effect](chunkSize: Int)(implicit ec: ExecutionContext)
+  protected[blobstore] def bufferToDisk[F[_] : ConcurrentEffect : ContextShift](chunkSize: Int)(implicit ec: ExecutionContext)
   : Pipe[F, Byte, (Long, Stream[F, Byte])] = {
     in => Stream.bracket(Sync[F].delay(Files.createTempFile("bufferToDisk", ".bin")))(
-      p => {
-        in.to(fs2.io.file.writeAllAsync(p)).drain ++
-          Stream.emit((p.toFile.length, fs2.io.file.readAllAsync(p, chunkSize)))
-      },
-      p => Sync[F].delay(p.toFile.delete).void
-    )
+      p => Sync[F].delay(p.toFile.delete).void).flatMap { p =>
+        in.to(fs2.io.file.writeAll(p, ec)).drain ++
+        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, ec, chunkSize)))
+    }
   }
 
 }

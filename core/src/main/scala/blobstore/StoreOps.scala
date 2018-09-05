@@ -17,7 +17,7 @@ package blobstore
 
 import java.nio.charset.Charset
 
-import cats.effect.{Effect, Sync}
+import cats.effect.{ConcurrentEffect, ContextShift, Effect, Sync}
 import fs2.{Pipe, Sink, Stream}
 import cats.implicits._
 
@@ -25,7 +25,7 @@ import scala.concurrent.ExecutionContext
 
 trait StoreOps {
 
-  implicit class PutOps[F[_]](store: Store[F]) {
+  implicit class PutOps[F[_] : ContextShift](store: Store[F])(implicit ec: ExecutionContext) {
     /**
       * Write contents String into path.
       * @param contents String
@@ -46,7 +46,7 @@ trait StoreOps {
       */
     def put(src: java.nio.file.Path, dst: Path)(implicit F: Sync[F]): F[Unit] =
       fs2.io.file
-        .readAll(src, 4096)
+        .readAll(src, ec, 4096)
         .to(store.put(dst.copy(size = Option(src.toFile.length))))
         .compile.drain
 
@@ -58,13 +58,13 @@ trait StoreOps {
       * @param path Path to write to
       * @return Sink[F, Byte] buffered sink
       */
-    def bufferedPut(path: Path)(implicit F: Effect[F], ec: ExecutionContext): Sink[F, Byte] = in =>
+    def bufferedPut(path: Path)(implicit F: ConcurrentEffect[F], ec: ExecutionContext): Sink[F, Byte] = in =>
       in.through(bufferToDisk(4096)).flatMap { case (n, s) =>
         s.to(store.put(path.copy(size = Some(n))))
       }
   }
 
-  implicit class GetOps[F[_]](store: Store[F]) {
+  implicit class GetOps[F[_] : ContextShift](store: Store[F])(implicit ec: ExecutionContext) {
     /**
       * get with default buffer size of 4kb
       * @param path Path to get
@@ -79,7 +79,7 @@ trait StoreOps {
       * @return F[Unit]
       */
     def get(src: Path, dst: java.nio.file.Path)(implicit F: Sync[F]): F[Unit] =
-      store.get(src, 4096).to(fs2.io.file.writeAll(dst)).compile.drain
+      store.get(src, 4096).to(fs2.io.file.writeAll(dst, ec)).compile.drain
 
     /**
       * getContents with default UTF8 decoder
