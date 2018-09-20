@@ -29,10 +29,9 @@ import com.amazonaws.services.s3.model.{CopyObjectRequest, ListObjectsRequest, O
 
 import scala.concurrent.ExecutionContext
 
-case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Option[String] = None)(implicit F: Effect[F], ec: ExecutionContext) extends Store[F] {
+case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Option[String] = None, blockingExecutionContext: ExecutionContext)(implicit F: Effect[F]) extends Store[F] {
 
-  // convert ObjectListing to Chunk[Path]
-  private def _segment(ol: ObjectListing): Chunk[Path] = {
+  private def _chunk(ol: ObjectListing): Chunk[Path] = {
     val dirs: Chunk[Path] = Chunk.seq(ol.getCommonPrefixes.asScala.map(s =>
       Path(ol.getBucketName, s.dropRight(1), None, true, None)
     ))
@@ -55,9 +54,9 @@ case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Op
       getObjectListing => F.delay {
         getObjectListing().map { ol =>
           if (ol.isTruncated)
-            (_segment(ol), () => Option(s3.listNextBatchOfObjects(ol)))
+            (_chunk(ol), () => Option(s3.listNextBatchOfObjects(ol)))
           else
-            (_segment(ol), () => None)
+            (_chunk(ol), () => None)
         }
       }
     }
@@ -65,7 +64,7 @@ case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Op
 
   override def get(path: Path, chunkSize: Int): Stream[F, Byte] = {
     val is: F[InputStream] = F.delay(s3.getObject(path.root, path.key).getObjectContent)
-    fs2.io.readInputStream(is, chunkSize, closeAfterUse = true, blockingExecutionContext = ec)
+    fs2.io.readInputStream(is, chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
   }
 
   override def put(path: Path): Sink[F, Byte] = { in =>
@@ -121,9 +120,9 @@ object S3Store {
     * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](fa: F[AmazonS3], sse: Boolean)(implicit F: ConcurrentEffect[F], ec: ExecutionContext): Stream[F, S3Store[F]] = {
+  def apply[F[_] : ContextShift](fa: F[AmazonS3], sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
     val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
-    apply(fa, opt)
+    apply(fa, opt, blockingExecutionContext)
   }
 
   /**
@@ -135,9 +134,9 @@ object S3Store {
     * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](sse: Boolean)(implicit F: ConcurrentEffect[F], ec: ExecutionContext): Stream[F, S3Store[F]] = {
+  def apply[F[_] : ContextShift](sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
     val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), opt)
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), opt, blockingExecutionContext)
   }
 
   /**
@@ -149,8 +148,8 @@ object S3Store {
     * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](sse: String)(implicit F: ConcurrentEffect[F], ec: ExecutionContext): Stream[F, S3Store[F]] =
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), Option(sse))
+  def apply[F[_] : ContextShift](sse: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), Option(sse), blockingExecutionContext)
 
 
   /**
@@ -161,8 +160,8 @@ object S3Store {
     *
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift]()(implicit F: ConcurrentEffect[F], ec: ExecutionContext): Stream[F, S3Store[F]] =
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), None)
+  def apply[F[_] : ContextShift](blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
+    apply(F.delay(AmazonS3ClientBuilder.standard().build()), None, blockingExecutionContext)
 
 
 
@@ -173,11 +172,11 @@ object S3Store {
     * @param sse Option[String] sse algorithm
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ConcurrentEffect : ContextShift](fa: F[AmazonS3], sse: Option[String])(implicit F: Effect[F], ec: ExecutionContext)
+  def apply[F[_]: ContextShift](fa: F[AmazonS3], sse: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
   : Stream[F, S3Store[F]] = {
     fs2.Stream.bracket(fa)(client => F.delay(client.shutdown())).flatMap {
       client => {
-        fs2.Stream.eval(F.delay(S3Store[F](client, sse)))
+        fs2.Stream.eval(F.delay(S3Store[F](client, sse, blockingExecutionContext)))
       }
     }
   }

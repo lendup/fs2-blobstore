@@ -20,7 +20,7 @@ import java.nio.file.{Paths, Path => NioPath}
 
 import blobstore.fs.FileStore
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
-import cats.effect.{IO, Sync}
+import cats.effect.IO
 import cats.effect.laws.util.{TestContext, TestInstances}
 import cats.implicits._
 import implicits._
@@ -29,10 +29,9 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
   implicit val ec = TestContext()
   implicit val cs = ec.contextShift[IO]
-  implicit val s = Sync[IO]
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
-  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir)
+  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir, ec)
 
   val store: Store[IO]
   val root: String
@@ -182,7 +181,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
       c1 must be(c2)
     }
 
-    test
+    test.unsafeRunSync()
   }
 
   it should "transfer directories recursively from one store to another" in {

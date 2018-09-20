@@ -31,12 +31,12 @@ package object blobstore {
     }
   }
 
-  protected[blobstore] def bufferToDisk[F[_] : ConcurrentEffect : ContextShift](chunkSize: Int)(implicit ec: ExecutionContext)
+  protected[blobstore] def bufferToDisk[F[_] : ConcurrentEffect : ContextShift](chunkSize: Int, blockingExecutionContext: ExecutionContext)
   : Pipe[F, Byte, (Long, Stream[F, Byte])] = {
     in => Stream.bracket(Sync[F].delay(Files.createTempFile("bufferToDisk", ".bin")))(
       p => Sync[F].delay(p.toFile.delete).void).flatMap { p =>
-        in.to(fs2.io.file.writeAll(p, ec)).drain ++
-        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, ec, chunkSize)))
+        in.to(fs2.io.file.writeAll(p, blockingExecutionContext)).drain ++
+        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, blockingExecutionContext, chunkSize)))
     }
   }
 

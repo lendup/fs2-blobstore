@@ -16,8 +16,6 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package s3
 
-//import java.nio.file.Paths
-
 import cats.effect.IO
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
@@ -26,8 +24,6 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 
 class S3StoreTest extends AbstractStoreTest {
-
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   val credentials = new BasicAWSCredentials("my_access_key", "my_secret_key")
   val clientConfiguration = new ClientConfiguration();
@@ -39,7 +35,7 @@ class S3StoreTest extends AbstractStoreTest {
     .withCredentials(new AWSStaticCredentialsProvider(credentials))
     .build()
 
-  override val store: Store[IO] = S3Store[IO](client)
+  override val store: Store[IO] = S3Store[IO](client, blockingExecutionContext = ec)
   override val root: String = "blobstore-test-bucket"
 
   override def beforeAll(): Unit = {

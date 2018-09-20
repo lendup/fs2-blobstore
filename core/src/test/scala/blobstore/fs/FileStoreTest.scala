@@ -22,7 +22,7 @@ import cats.effect.IO
 class FileStoreTest extends AbstractStoreTest {
 
   val rootDir: NioPath = Paths.get("tmp/file-store-root/")
-  override val store: Store[IO] = FileStore[IO](rootDir)
+  override val store: Store[IO] = FileStore[IO](rootDir, ec)
   override val root: String = "file_tests"
 
   behavior of "FileStore.put"

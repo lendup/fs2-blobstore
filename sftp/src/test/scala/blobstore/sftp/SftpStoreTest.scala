@@ -23,7 +23,6 @@ import cats.effect.IO
 import com.jcraft.jsch.{ChannelSftp, JSch}
 
 class SftpStoreTest extends AbstractStoreTest {
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   val (channel, session) = try {
     val jsch = new JSch()
@@ -49,7 +48,7 @@ class SftpStoreTest extends AbstractStoreTest {
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  override val store: Store[IO] = SftpStore[IO]("/", channel)
+  override val store: Store[IO] = SftpStore[IO]("/", channel, blockingExecutionContext = ec)
   override val root: String = "sftp_tests"
 
   // remove dirs created by AbstractStoreTest
