@@ -11,8 +11,6 @@ import com.box.sdk.BoxAPIConnection
 @IntegrationTest
 class BoxStoreIntegrationTest extends AbstractStoreTest {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   // Your Box dev token. You are free to use a different way of instantiating your BoxAPIConnection,
   // but be careful not to commit this information.
   val boxDevToken = System.getenv("BOX_TEST_BOX_DEV_TOKEN")
@@ -25,7 +23,7 @@ class BoxStoreIntegrationTest extends AbstractStoreTest {
   // This test simply uses a dev token to start a connection, but you can replace this with any BoxAPIConnection.
   val api = new BoxAPIConnection(boxDevToken)
 
-  override val store: Store[IO] = new BoxStore[IO](api, rootFolderId)
+  override val store: Store[IO] = new BoxStore[IO](api, rootFolderId, ec)
 
   // If your rootFolderId is a safe directory to test under, this root string doesn't matter that much.
   override val root: String = "BoxStoreTest"

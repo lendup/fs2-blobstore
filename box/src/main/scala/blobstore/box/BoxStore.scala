@@ -20,14 +20,14 @@ package box
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
-import cats.effect.Effect
+import cats.effect.{ConcurrentEffect, ContextShift}
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
 import fs2.{Sink, Stream}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit F: Effect[F], ec: ExecutionContext) extends Store[F] {
+case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 
@@ -112,7 +112,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
           bothStreams._1.close()
         }))).getOrElse(Stream.fromIterator(Iterator.empty))
 
-        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true)
+        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
 
         s <- readInput concurrently dl
     } yield s
@@ -122,7 +122,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
       ios._2.close()
     }
 
-    Stream.bracket(init)(consume, release)
+    Stream.bracket(init)(release).flatMap(consume)
   }
 
   /**
@@ -191,7 +191,7 @@ case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String)(implicit 
       ios._1.close()
     }
 
-    Stream.bracket(init)(consume, release)
+    Stream.bracket(init)(release).flatMap(consume)
   }
 
   /**

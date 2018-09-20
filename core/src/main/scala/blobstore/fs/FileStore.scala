@@ -26,7 +26,7 @@ import fs2.{Sink, Stream}
 
 import scala.concurrent.ExecutionContext
 
-case class FileStore[F[_] : ContextShift](fsroot: NioPath)(implicit F: Sync[F], ec: ExecutionContext) extends Store[F] {
+case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F]) extends Store[F] {
   val absRoot: String = fsroot.toAbsolutePath.normalize.toString
 
   override def list(path: Path): fs2.Stream[F, Path] = {
@@ -55,12 +55,12 @@ case class FileStore[F[_] : ContextShift](fsroot: NioPath)(implicit F: Sync[F], 
     isDir.ifM(files, isFile.ifM(file, Stream.empty.covaryAll[F, Path]))
   }
 
-  override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = fs2.io.file.readAll[F](path, ec, chunkSize)
+  override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = fs2.io.file.readAll[F](path, blockingExecutionContext, chunkSize)
 
   override def put(path: Path): Sink[F, Byte] = { in =>
     val mkdir = Stream.eval(F.delay(Files.createDirectories(_toNioPath(path).getParent)).as(true))
     mkdir.ifM(
-      fs2.io.file.writeAll(path, ec).apply(in),
+      fs2.io.file.writeAll(path, blockingExecutionContext).apply(in),
       Stream.raiseError[F](new Exception(s"failed to create dir: $path"))
     )
   }
