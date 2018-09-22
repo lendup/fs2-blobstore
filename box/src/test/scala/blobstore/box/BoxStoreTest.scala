@@ -3,16 +3,16 @@ package blobstore.box
 
 import blobstore.Path
 import cats.effect.{ContextShift, IO}
-import cats.effect.laws.util.TestContext
 import com.box.sdk.BoxAPIConnection
 import org.scalatest.FlatSpec
 import org.scalatest.MustMatchers
 
+import scala.concurrent.ExecutionContext
+
 class BoxStoreTest extends FlatSpec with MustMatchers {
 
-  implicit val ec = TestContext()
-  implicit val cs: ContextShift[IO] = ec.contextShift
-
+  implicit val ec = ExecutionContext.global
+  implicit val cs: ContextShift[IO] = IO.contextShift(ec)
   "splitPath" should "correctly split a long path" in {
     val boxStore = new BoxStore[IO](new BoxAPIConnection(""), "", ec)
     val testPath = Path("long/path/to/filename")

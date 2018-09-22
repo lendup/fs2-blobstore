@@ -3,19 +3,20 @@ package blobstore
 import java.nio.charset.Charset
 import java.nio.file.Files
 
-import cats.effect.{IO}
-import cats.effect.laws.util.{TestContext, TestInstances}
+import cats.effect.IO
+import cats.effect.laws.util.TestInstances
 import cats.implicits._
 import fs2.Sink
 import org.scalatest.{Assertion, FlatSpec, MustMatchers}
 import implicits._
 
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.ExecutionContext
 
 class StoreOpsTest extends FlatSpec with MustMatchers with TestInstances {
 
-  implicit val ec = TestContext()
-  implicit val cs = ec.contextShift[IO]
+  implicit val ec = ExecutionContext.global
+  implicit val cs = IO.contextShift(ec)
 
   behavior of "PutOps"
   it should "buffer contents and compute size before calling Store.put" in {

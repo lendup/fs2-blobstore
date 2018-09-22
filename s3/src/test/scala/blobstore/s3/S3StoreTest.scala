@@ -26,16 +26,19 @@ import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 class S3StoreTest extends AbstractStoreTest {
 
   val credentials = new BasicAWSCredentials("my_access_key", "my_secret_key")
-  val clientConfiguration = new ClientConfiguration();
-  clientConfiguration.setSignerOverride("AWSS3V4SignerType");
+  val clientConfiguration = new ClientConfiguration()
+  clientConfiguration.setSignerOverride("AWSS3V4SignerType")
+  val minioHost = Option(System.getenv("BLOBSTORE_MINIO_HOST")).getOrElse("minio-container")
+  val minioPort = Option(System.getenv("BLOBSTORE_MINIO_PORT")).getOrElse("9000")
   private val client: AmazonS3 = AmazonS3ClientBuilder.standard()
-    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://minio-container:9000", Regions.US_EAST_1.name()))
+    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+      s"http://$minioHost:$minioPort", Regions.US_EAST_1.name()))
     .withPathStyleAccessEnabled(true)
     .withClientConfiguration(clientConfiguration)
     .withCredentials(new AWSStaticCredentialsProvider(credentials))
     .build()
 
-  override val store: Store[IO] = S3Store[IO](client, blockingExecutionContext = ec)
+  override val store: Store[IO] = S3Store[IO](client, blockingExecutionContext = blockingExecutionContext)
   override val root: String = "blobstore-test-bucket"
 
   override def beforeAll(): Unit = {
