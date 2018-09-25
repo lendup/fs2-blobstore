@@ -19,15 +19,22 @@ import java.util.UUID
 import java.nio.file.{Paths, Path => NioPath}
 
 import blobstore.fs.FileStore
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
-import cats.effect.IO
+import org.scalatest.{FlatSpec, BeforeAndAfterAll, MustMatchers}
+import cats.effect.{ContextShift, IO}
+import cats.effect.laws.util.TestInstances
 import cats.implicits._
 import implicits._
 
-trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
+import scala.concurrent.ExecutionContext
+
+trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll with TestInstances {
+
+  implicit val ec: ExecutionContext = ExecutionContext.global
+  implicit val cs: ContextShift[IO] = IO.contextShift(ec)
+  val blockingExecutionContext = ec
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
-  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir)
+  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir, blockingExecutionContext)
 
   val store: Store[IO]
   val root: String

@@ -4,22 +4,26 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 
 import cats.effect.IO
+import cats.effect.laws.util.TestInstances
 import cats.implicits._
 import fs2.Sink
 import org.scalatest.{Assertion, FlatSpec, MustMatchers}
 import implicits._
 
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
-class StoreOpsTest extends FlatSpec with MustMatchers {
+class StoreOpsTest extends FlatSpec with MustMatchers with TestInstances {
+
+  implicit val ec = ExecutionContext.global
+  implicit val cs = IO.contextShift(ec)
 
   behavior of "PutOps"
   it should "buffer contents and compute size before calling Store.put" in {
     val bytes: Array[Byte] = "AAAAAAAAAA".getBytes(Charset.forName("utf-8"))
     val store = DummyStore(_.size must be(Some(bytes.length)))
 
-    fs2.Stream.emits(bytes).covary[IO].to(store.bufferedPut(Path("path/to/file.txt"))).compile.drain.unsafeRunSync()
+    fs2.Stream.emits(bytes).covary[IO].to(store.bufferedPut(Path("path/to/file.txt"), ec)).compile.drain.unsafeRunSync()
     store.buf.toArray must be(bytes)
 
   }
@@ -28,13 +32,12 @@ class StoreOpsTest extends FlatSpec with MustMatchers {
     val bytes = "hello".getBytes(Charset.forName("utf-8"))
     val store = DummyStore(_.size must be(Some(bytes.length)))
 
-    fs2.Stream.bracket(IO(Files.createTempFile("test-file", ".bin")))(
-      p => {
-        fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAllAsync(p)).drain ++
-          fs2.Stream.eval(store.put(p, Path("path/to/file.txt")))
-      },
-      p => IO(p.toFile.delete).void
-    ).compile.drain.unsafeRunSync()
+    fs2.Stream.bracket(IO(Files.createTempFile("test-file", ".bin"))) { p =>
+      IO(p.toFile.delete).void
+    }.flatMap { p =>
+      fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAll(p, ec)).drain ++
+        fs2.Stream.eval(store.put(p, Path("path/to/file.txt"), ec))
+    }.compile.drain.unsafeRunSync()
     store.buf.toArray must be(bytes)
   }
 

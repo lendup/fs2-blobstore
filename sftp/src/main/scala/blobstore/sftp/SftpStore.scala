@@ -17,13 +17,15 @@ package blobstore
 package sftp
 
 import java.util.Date
-import cats.effect.Effect
+
+import cats.effect.{ConcurrentEffect, ContextShift}
 import com.jcraft.jsch._
+
 import scala.util.Try
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Effect[F], ec: ExecutionContext)
+case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
   extends Store[F] {
   import implicits._
 
@@ -67,7 +69,7 @@ case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Ef
   }
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true)
+    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
   }
 
   override def put(path: Path): fs2.Sink[F, Byte] = { in =>
@@ -94,7 +96,7 @@ case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp)(implicit F: Ef
   override def copy(src: Path, dst: Path): F[Unit] = {
     val s = for {
       _ <- fs2.Stream.eval(F.delay(mkdirs(dst)))
-      _ <- get(src).to(this.bufferedPut(dst))
+      _ <- get(src).to(this.bufferedPut(dst, blockingExecutionContext))
     } yield ()
 
     s.compile.drain
@@ -119,11 +121,12 @@ object SftpStore {
     * @param fa F[ChannelSftp] how to connect to SFTP server
     * @return Stream[ F, SftpStore[F] ] stream with one SftpStore, sftp channel will disconnect once stream is done.
     */
-  def apply[F[_]](absRoot: String, fa: F[ChannelSftp])(implicit F: Effect[F], ec: ExecutionContext)
+  def apply[F[_]: ContextShift](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
   : fs2.Stream[F, SftpStore[F]] = {
     fs2.Stream.bracket(fa)(
-      channel => fs2.Stream.eval(F.delay(SftpStore[F](absRoot, channel))),          // consume
-      channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() } // shutdown
-    )
+      release = channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() }
+    ).flatMap { channel =>
+      fs2.Stream.eval(F.delay(SftpStore[F](absRoot, channel, blockingExecutionContext)))
+    }
   }
 }
