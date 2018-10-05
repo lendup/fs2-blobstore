@@ -25,7 +25,7 @@ import scala.concurrent.ExecutionContext
 package object blobstore {
   protected[blobstore] def _writeAllToOutputStream1[F[_]](in: Stream[F, Byte], out: OutputStream)(
     implicit F: Effect[F]): Pull[F, Nothing, Unit] = {
-    in.pull.unconsChunk.flatMap {
+    in.pull.uncons.flatMap {
       case None => Pull.done
       case Some((hd, tl)) => Pull.eval[F, Unit](F.delay(out.write(hd.toArray))) >> _writeAllToOutputStream1(tl, out)
     }
