@@ -24,16 +24,19 @@ import cats.syntax.flatMap._
 import fs2.{Chunk, Sink, Stream}
 
 import scala.collection.JavaConverters._
-import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
+import com.amazonaws.services.s3.AmazonS3
 import com.amazonaws.services.s3.model.{CopyObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata}
+import com.amazonaws.services.s3.transfer.{TransferManager, TransferManagerBuilder}
 
 import scala.concurrent.ExecutionContext
 
-case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Option[String] = None, blockingExecutionContext: ExecutionContext)(implicit F: Effect[F]) extends Store[F] {
+case class S3Store[F[_] : ConcurrentEffect : ContextShift](tm: TransferManager, sse: Option[String] = None, blockingExecutionContext: ExecutionContext)(implicit F: Effect[F]) extends Store[F] {
+
+  final val s3: AmazonS3 = tm.getAmazonS3Client
 
   private def _chunk(ol: ObjectListing): Chunk[Path] = {
     val dirs: Chunk[Path] = Chunk.seq(ol.getCommonPrefixes.asScala.map(s =>
-      Path(ol.getBucketName, s.dropRight(1), None, true, None)
+      Path(ol.getBucketName, s.dropRight(1), None, isDir = true, None)
     ))
     val files: Chunk[Path] = Chunk.seq(ol.getObjectSummaries.asScala.map(o =>
       Path(o.getBucketName, o.getKey, Option(o.getSize), isDir = false, Option(o.getLastModified))
@@ -79,7 +82,7 @@ case class S3Store[F[_] : ConcurrentEffect : ContextShift](s3: AmazonS3, sse: Op
         val meta = new ObjectMetadata()
         path.size.foreach(meta.setContentLength)
         sse.foreach(meta.setSSEAlgorithm)
-        s3.putObject(path.root, path.key, ios._2, meta)
+        tm.upload(path.root, path.key, ios._2, meta).waitForCompletion()
         ()
       })
 
@@ -116,17 +119,17 @@ object S3Store {
   /**
     * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
     *
-    * @param fa  F[AmazonS3] how to connect AWS S3 client
+    * @param fa  F[TransferManager] how to connect AWS S3 client
     * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](fa: F[AmazonS3], sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
+  def apply[F[_] : ContextShift](fa: F[TransferManager], sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
     val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
     apply(fa, opt, blockingExecutionContext)
   }
 
   /**
-    * Safely initialize S3Store using AmazonS3ClientBuilder.standard() and shutdown client upon finish.
+    * Safely initialize S3Store using TransferManagerBuilder.standard() and shutdown client upon finish.
     *
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
@@ -136,11 +139,11 @@ object S3Store {
     */
   def apply[F[_] : ContextShift](sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
     val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), opt, blockingExecutionContext)
+    apply(F.delay(TransferManagerBuilder.standard().build()), opt, blockingExecutionContext)
   }
 
   /**
-    * Safely initialize S3Store using AmazonS3ClientBuilder.standard() and shutdown client upon finish.
+    * Safely initialize S3Store using TransferManagerBuilder.standard() and shutdown client upon finish.
     *
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
@@ -149,11 +152,11 @@ object S3Store {
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
   def apply[F[_] : ContextShift](sse: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), Option(sse), blockingExecutionContext)
+    apply(F.delay(TransferManagerBuilder.standard().build()), Option(sse), blockingExecutionContext)
 
 
   /**
-    * Safely initialize S3Store using AmazonS3ClientBuilder.standard() and shutdown client upon finish.
+    * Safely initialize S3Store using TransferManagerBuilder.standard() and shutdown client upon finish.
     *
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
@@ -161,20 +164,20 @@ object S3Store {
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
   def apply[F[_] : ContextShift](blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
-    apply(F.delay(AmazonS3ClientBuilder.standard().build()), None, blockingExecutionContext)
+    apply(F.delay(TransferManagerBuilder.standard().build()), None, blockingExecutionContext)
 
 
 
   /**
     * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
     *
-    * @param fa F[AmazonS3] how to connect AWS S3 client
+    * @param fa F[TransferManager] how to connect AWS S3 client
     * @param sse Option[String] sse algorithm
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_]: ContextShift](fa: F[AmazonS3], sse: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
+  def apply[F[_]: ContextShift](fa: F[TransferManager], sse: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
   : Stream[F, S3Store[F]] = {
-    fs2.Stream.bracket(fa)(client => F.delay(client.shutdown())).flatMap {
+    fs2.Stream.bracket(fa)(client => F.delay(client.getAmazonS3Client.shutdown())).flatMap {
       client => {
         fs2.Stream.eval(F.delay(S3Store[F](client, sse, blockingExecutionContext)))
       }
