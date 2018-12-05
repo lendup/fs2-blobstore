@@ -25,7 +25,7 @@ import scala.util.Try
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
+final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
   extends Store[F] {
   import implicits._
 

@@ -21,6 +21,7 @@ import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder
 import com.amazonaws.regions.Regions
+import com.amazonaws.services.s3.transfer.{TransferManager, TransferManagerBuilder}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 
 class S3StoreTest extends AbstractStoreTest {
@@ -28,8 +29,8 @@ class S3StoreTest extends AbstractStoreTest {
   val credentials = new BasicAWSCredentials("my_access_key", "my_secret_key")
   val clientConfiguration = new ClientConfiguration()
   clientConfiguration.setSignerOverride("AWSS3V4SignerType")
-  val minioHost = Option(System.getenv("BLOBSTORE_MINIO_HOST")).getOrElse("minio-container")
-  val minioPort = Option(System.getenv("BLOBSTORE_MINIO_PORT")).getOrElse("9000")
+  val minioHost: String = Option(System.getenv("BLOBSTORE_MINIO_HOST")).getOrElse("minio-container")
+  val minioPort: String = Option(System.getenv("BLOBSTORE_MINIO_PORT")).getOrElse("9000")
   private val client: AmazonS3 = AmazonS3ClientBuilder.standard()
     .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
       s"http://$minioHost:$minioPort", Regions.US_EAST_1.name()))
@@ -37,8 +38,11 @@ class S3StoreTest extends AbstractStoreTest {
     .withClientConfiguration(clientConfiguration)
     .withCredentials(new AWSStaticCredentialsProvider(credentials))
     .build()
+  private val transferManager: TransferManager = TransferManagerBuilder.standard()
+    .withS3Client(client)
+    .build()
 
-  override val store: Store[IO] = S3Store[IO](client, blockingExecutionContext = blockingExecutionContext)
+  override val store: Store[IO] = S3Store[IO](transferManager, blockingExecutionContext = blockingExecutionContext)
   override val root: String = "blobstore-test-bucket"
 
   override def beforeAll(): Unit = {
