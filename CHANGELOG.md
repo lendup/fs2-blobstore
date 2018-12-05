@@ -1,3 +1,7 @@
+v0.3.0
+======
+* Update S3Store to use s3's TransferManager.upload during put [#28](https://github.com/lendup/fs2-blobstore/pull/28)
+
 v0.2.2
 ======
 * Update fs2 to 1.0.0, Scala to 2.12.7 [#24](https://github.com/lendup/fs2-blobstore/pull/24)

@@ -17,7 +17,7 @@ package blobstore
 
 import java.util.Date
 
-case class Path(root: String, key: String, size: Option[Long], isDir: Boolean, lastModified: Option[Date]) {
+final case class Path(root: String, key: String, size: Option[Long], isDir: Boolean, lastModified: Option[Date]) {
   override def toString: String = s"$root/$key"
 }
 

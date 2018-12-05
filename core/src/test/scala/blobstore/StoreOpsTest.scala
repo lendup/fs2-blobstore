@@ -43,7 +43,7 @@ class StoreOpsTest extends FlatSpec with MustMatchers with TestInstances {
 
 }
 
-case class DummyStore(check: Path => Assertion) extends Store[IO] {
+final case class DummyStore(check: Path => Assertion) extends Store[IO] {
   val buf = new ArrayBuffer[Byte]()
   override def put(path: Path): Sink[IO, Byte] = {
     check(path)

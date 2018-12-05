@@ -38,11 +38,11 @@ class S3StoreTest extends AbstractStoreTest {
     .withClientConfiguration(clientConfiguration)
     .withCredentials(new AWSStaticCredentialsProvider(credentials))
     .build()
-  private val tm: TransferManager = TransferManagerBuilder.standard()
+  private val transferManager: TransferManager = TransferManagerBuilder.standard()
     .withS3Client(client)
     .build()
 
-  override val store: Store[IO] = S3Store[IO](tm, blockingExecutionContext = blockingExecutionContext)
+  override val store: Store[IO] = S3Store[IO](transferManager, blockingExecutionContext = blockingExecutionContext)
   override val root: String = "blobstore-test-bucket"
 
   override def beforeAll(): Unit = {

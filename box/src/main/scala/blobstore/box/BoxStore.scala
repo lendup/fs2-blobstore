@@ -27,7 +27,7 @@ import fs2.{Sink, Stream}
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
+final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 

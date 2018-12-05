@@ -25,14 +25,14 @@ import fs2.{Chunk, Sink, Stream}
 
 import scala.collection.JavaConverters._
 import com.amazonaws.services.s3.AmazonS3
-import com.amazonaws.services.s3.model.{CopyObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata}
+import com.amazonaws.services.s3.model._
 import com.amazonaws.services.s3.transfer.{TransferManager, TransferManagerBuilder}
 
 import scala.concurrent.ExecutionContext
 
-case class S3Store[F[_] : ConcurrentEffect : ContextShift](tm: TransferManager, sse: Option[String] = None, blockingExecutionContext: ExecutionContext)(implicit F: Effect[F]) extends Store[F] {
+final case class S3Store[F[_] : ConcurrentEffect : ContextShift](transferManager: TransferManager, sseAlgorithm: Option[String] = None, blockingExecutionContext: ExecutionContext)(implicit F: Effect[F]) extends Store[F] {
 
-  final val s3: AmazonS3 = tm.getAmazonS3Client
+  final val s3: AmazonS3 = transferManager.getAmazonS3Client
 
   private def _chunk(ol: ObjectListing): Chunk[Path] = {
     val dirs: Chunk[Path] = Chunk.seq(ol.getCommonPrefixes.asScala.map(s =>
@@ -81,8 +81,8 @@ case class S3Store[F[_] : ConcurrentEffect : ContextShift](tm: TransferManager, 
       val putToS3 = Stream.eval(F.delay {
         val meta = new ObjectMetadata()
         path.size.foreach(meta.setContentLength)
-        sse.foreach(meta.setSSEAlgorithm)
-        tm.upload(path.root, path.key, ios._2, meta).waitForCompletion()
+        sseAlgorithm.foreach(meta.setSSEAlgorithm)
+        transferManager.upload(path.root, path.key, ios._2, meta).waitForCompletion()
         ()
       })
 
@@ -107,7 +107,7 @@ case class S3Store[F[_] : ConcurrentEffect : ContextShift](tm: TransferManager, 
 
   override def copy(src: Path, dst: Path): F[Unit] = F.delay {
     val meta = new ObjectMetadata()
-    sse.foreach(meta.setSSEAlgorithm)
+    sseAlgorithm.foreach(meta.setSSEAlgorithm)
     val req = new CopyObjectRequest(src.root, src.key, dst.root, dst.key).withNewObjectMetadata(meta)
     s3.copyObject(req)
   }.void
@@ -119,13 +119,13 @@ object S3Store {
   /**
     * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
     *
-    * @param fa  F[TransferManager] how to connect AWS S3 client
-    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
+    * @param functor  F[TransferManager] how to connect AWS S3 client
+    * @param encrypt Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](fa: F[TransferManager], sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
-    val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
-    apply(fa, opt, blockingExecutionContext)
+  def apply[F[_] : ContextShift](functor: F[TransferManager], encrypt: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
+    val opt = if (encrypt) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
+    apply(functor, opt, blockingExecutionContext)
   }
 
   /**
@@ -134,11 +134,11 @@ object S3Store {
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
     *
-    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
+    * @param encrypt Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](sse: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
-    val opt = if (sse) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
+  def apply[F[_] : ContextShift](encrypt: Boolean, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] = {
+    val opt = if (encrypt) Option(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION) else None
     apply(F.delay(TransferManagerBuilder.standard().build()), opt, blockingExecutionContext)
   }
 
@@ -148,11 +148,11 @@ object S3Store {
     * NOTICE: Standard S3 client builder uses the Default Credential Provider Chain, see docs on how to authenticate:
     *         https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html
     *
-    * @param sse Boolean true to force all writes to use SSE algorithm ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
+    * @param sseAlgorithm SSE algorithm, ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION is recommended.
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_] : ContextShift](sse: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
-    apply(F.delay(TransferManagerBuilder.standard().build()), Option(sse), blockingExecutionContext)
+  def apply[F[_] : ContextShift](sseAlgorithm: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F]): Stream[F, S3Store[F]] =
+    apply(F.delay(TransferManagerBuilder.standard().build()), Option(sseAlgorithm), blockingExecutionContext)
 
 
   /**
@@ -171,15 +171,15 @@ object S3Store {
   /**
     * Safely initialize S3Store and shutdown Amazon S3 client upon finish.
     *
-    * @param fa F[TransferManager] how to connect AWS S3 client
-    * @param sse Option[String] sse algorithm
+    * @param functor F[TransferManager] how to connect AWS S3 client
+    * @param sseAlgorithm Option[String] Server Side Encryption algorithm
     * @return Stream[ F, S3Store[F] ] stream with one S3Store, AmazonS3 client will disconnect once stream is done.
     */
-  def apply[F[_]: ContextShift](fa: F[TransferManager], sse: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
+  def apply[F[_]: ContextShift](functor: F[TransferManager], sseAlgorithm: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
   : Stream[F, S3Store[F]] = {
-    fs2.Stream.bracket(fa)(client => F.delay(client.getAmazonS3Client.shutdown())).flatMap {
+    fs2.Stream.bracket(functor)(client => F.delay(client.getAmazonS3Client.shutdown())).flatMap {
       client => {
-        fs2.Stream.eval(F.delay(S3Store[F](client, sse, blockingExecutionContext)))
+        fs2.Stream.eval(F.delay(S3Store[F](client, sseAlgorithm, blockingExecutionContext)))
       }
     }
   }
