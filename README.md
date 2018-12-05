@@ -16,9 +16,9 @@ fs2-blobstore is deployed to maven central, add to build.sbt:
 
 ```sbtshell
 libraryDependencies ++= Seq(
-  "com.lendup.fs2-blobstore" %% "core" % "0.1.+",
-  "com.lendup.fs2-blobstore" %% "sftp" % "0.1.+",
-  "com.lendup.fs2-blobstore" %% "s3" % "0.1.+"
+  "com.lendup.fs2-blobstore" %% "core" % "0.3.+",
+  "com.lendup.fs2-blobstore" %% "sftp" % "0.3.+",
+  "com.lendup.fs2-blobstore" %% "s3" % "0.3.+"
 )
 ```
 
@@ -149,9 +149,9 @@ separators when referring to filesystem paths.
    It requires an authenticated `AmazonS3` client:
      ```scala
      import blobstore.Store, blobstore.s3.S3Store
-     import com.amazonaws.services.s3.AmazonS3ClientBuilder
+     import com.amazonaws.services.s3.transfer.TransferManagerBuilder
      import cats.effect.IO
-     val store: Store[IO] = S3Store[IO](AmazonS3ClientBuilder.standard().build())
+     val store: Store[IO] = S3Store[IO](TransferManagerBuilder.standard().build())
      ```
    * [SftpStore](sftp/src/main/scala/blobstore/sftp/SftpStore.scala) backed by 
    SFTP server with [Jsch client](http://www.jcraft.com/jsch/). It requires a 
