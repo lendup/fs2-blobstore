@@ -1,3 +1,7 @@
+v0.3.1
+======
+* Update S3Store to use other TransferManager methods when possible
+
 v0.3.0
 ======
 * Update S3Store to use s3's TransferManager.upload during put [#28](https://github.com/lendup/fs2-blobstore/pull/28)

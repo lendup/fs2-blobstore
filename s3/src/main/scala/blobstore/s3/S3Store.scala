@@ -109,7 +109,7 @@ final case class S3Store[F[_] : ConcurrentEffect : ContextShift](transferManager
     val meta = new ObjectMetadata()
     sseAlgorithm.foreach(meta.setSSEAlgorithm)
     val req = new CopyObjectRequest(src.root, src.key, dst.root, dst.key).withNewObjectMetadata(meta)
-    s3.copyObject(req)
+    transferManager.copy(req)
   }.void
 
   override def remove(path: Path): F[Unit] = F.delay(s3.deleteObject(path.root, path.key))
@@ -177,9 +177,9 @@ object S3Store {
     */
   def apply[F[_]: ContextShift](functor: F[TransferManager], sseAlgorithm: Option[String], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
   : Stream[F, S3Store[F]] = {
-    fs2.Stream.bracket(functor)(client => F.delay(client.getAmazonS3Client.shutdown())).flatMap {
-      client => {
-        fs2.Stream.eval(F.delay(S3Store[F](client, sseAlgorithm, blockingExecutionContext)))
+    fs2.Stream.bracket(functor)(tm => F.delay(tm.shutdownNow())).flatMap {
+      tm => {
+        fs2.Stream.eval(F.delay(S3Store[F](tm, sseAlgorithm, blockingExecutionContext)))
       }
     }
   }
