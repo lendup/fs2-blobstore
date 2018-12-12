@@ -109,8 +109,8 @@ final case class S3Store[F[_] : ConcurrentEffect : ContextShift](transferManager
     val meta = new ObjectMetadata()
     sseAlgorithm.foreach(meta.setSSEAlgorithm)
     val req = new CopyObjectRequest(src.root, src.key, dst.root, dst.key).withNewObjectMetadata(meta)
-    transferManager.copy(req)
-  }.void
+    transferManager.copy(req).waitForCompletion()
+  }
 
   override def remove(path: Path): F[Unit] = F.delay(s3.deleteObject(path.root, path.key))
 }
