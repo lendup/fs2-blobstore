@@ -1,3 +1,7 @@
+v0.4.0
+======
+* Make object ACLs configurable for S3Store
+
 v0.3.1
 ======
 * Update S3Store to use other TransferManager methods when possible
