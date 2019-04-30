@@ -16,6 +16,7 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 
 import org.scalatest.{FlatSpec, MustMatchers}
+import blobstore.PathOps._
 
 class PathTest extends FlatSpec with MustMatchers {
   behavior of "Path"
@@ -42,5 +43,11 @@ class PathTest extends FlatSpec with MustMatchers {
   it should "parse paths with no key" in {
     val path = Path("s3://some-bucket")
     path must be(Path("some-bucket", "", None, false, None))
+  }
+
+  it should "extend a path with no key correctly" in {
+    val path = Path("some-bucket") / "key"
+
+    path must be(Path("some-bucket", "key", None, false, None))
   }
 }

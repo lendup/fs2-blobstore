@@ -47,7 +47,10 @@ trait PathOps {
       */
     def /(str: String): Path = {
       val separator = if (path.key.lastOption.contains(SEP) || str.headOption.contains(SEP)) "" else SEP
-      val k = s"${path.key}$separator$str"
+      val k = path.key.trim match {
+        case "" => str
+        case _ => s"${path.key}$separator$str"
+      }
       Path(path.root, k, None, k.lastOption.contains(SEP), None)
     }
 
@@ -71,3 +74,5 @@ trait PathOps {
   }
 
 }
+
+object PathOps extends PathOps
