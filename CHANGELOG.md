@@ -1,3 +1,7 @@
+v0.4.1
+======
+* Fixed path extension to work on a path that is created with just a bucket and no key [#37](https://github.com/lendup/fs2-blobstore/pull/37)
+
 v0.4.0
 ======
 * Make object ACLs configurable for S3Store
