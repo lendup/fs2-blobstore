@@ -77,7 +77,10 @@ final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecuti
     }.void
   }
 
-  override def remove(path: Path): F[Unit] = F.delay(Files.delete(path))
+  override def remove(path: Path): F[Unit] = F.delay({
+    Files.deleteIfExists(path)
+    ()
+  })
 
   implicit private def _toNioPath(path: Path): NioPath =
     Paths.get(absRoot, path.root, path.key)
