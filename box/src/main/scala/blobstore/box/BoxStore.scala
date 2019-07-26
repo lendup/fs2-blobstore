@@ -19,15 +19,14 @@ package box
 
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 import cats.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift}
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
-import fs2.{Sink, Stream}
+import fs2.{Pipe, Stream}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
 
-final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
+final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blocker: Blocker)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 
@@ -71,7 +70,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
   override def list(path: Path): fs2.Stream[F, Path] = {
     for {
       itemOpt <- Stream.eval(F.delay(boxItemAtPath(path)))
-      item <- itemOpt.foldMap[Stream[F,BoxItem]](Stream.emit(_))
+      item <- itemOpt.foldMap[Stream[F, BoxItem]](Stream.emit(_))
 
       listFiles = Stream.eval(F.delay(item.asInstanceOf[BoxFolder]))
           .flatMap(folder => Stream.fromIterator(folder.getChildren.iterator.asScala))
@@ -112,7 +111,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
           bothStreams._1.close()
         }))).getOrElse(Stream.fromIterator(Iterator.empty))
 
-        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blocker = blocker)
 
         s <- readInput concurrently dl
     } yield s
@@ -170,7 +169,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
     * @param path to put
     * @return sink of bytes. This throws an exception if a file at this path already exists.
     */
-  override def put(path: Path): Sink[F, Byte] = { in =>
+  override def put(path: Path): Pipe[F, Byte, Unit] = { in =>
     val pathSplit = splitPath(path)
 
     val init: F[(OutputStream, InputStream, BoxFolder)] = F.delay {
