@@ -108,7 +108,6 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     } catch {
       // Let the remove() call succeed if there is no file at this path
       case e: SftpException if e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE => ()
-      case e: Throwable => throw e
     }
   })
 
