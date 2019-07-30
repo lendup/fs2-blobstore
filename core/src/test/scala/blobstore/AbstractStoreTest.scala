@@ -15,26 +15,27 @@ Copyright 2018 LendUp Global, Inc.
 */
 package blobstore
 
-import java.util.UUID
 import java.nio.file.{Paths, Path => NioPath}
+import java.util.UUID
 
 import blobstore.fs.FileStore
-import org.scalatest.{FlatSpec, BeforeAndAfterAll, MustMatchers}
-import cats.effect.{ContextShift, IO}
+import blobstore.implicits._
 import cats.effect.laws.util.TestInstances
+import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
-import implicits._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.{BeforeAndAfterAll, MustMatchers}
 
 import scala.concurrent.ExecutionContext
 
-trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll with TestInstances {
+trait AbstractStoreTest extends AnyFlatSpec with MustMatchers with BeforeAndAfterAll with TestInstances {
 
-  implicit val ec: ExecutionContext = ExecutionContext.global
-  implicit val cs: ContextShift[IO] = IO.contextShift(ec)
-  val blockingExecutionContext = ec
+  protected implicit val ec: ExecutionContext = ExecutionContext.global
+  protected implicit val cs: ContextShift[IO] = IO.contextShift(ec)
+  protected val blocker = Blocker.liftExecutionContext(ec)
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
-  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir, blockingExecutionContext)
+  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir, blocker)
 
   val store: Store[IO]
   val root: String
@@ -280,7 +281,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
       _ <- fs2.Stream(exp)
         .covary[IO]
         .through(fs2.text.utf8Encode)
-        .to(store.put(path))
+        .through(store.put(path))
         .compile.drain
       res <- store.getContents(path)
       _ <- store.remove(path)
@@ -305,8 +306,8 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
   def cleanup(root: NioPath): Unit = {
 
     import java.io.IOException
-    import java.nio.file.{FileVisitor, FileVisitResult, Files, SimpleFileVisitor, Path => NioPath}
     import java.nio.file.attribute.BasicFileAttributes
+    import java.nio.file.{FileVisitResult, FileVisitor, Files, SimpleFileVisitor, Path => NioPath}
 
     val fv: FileVisitor[NioPath] = new SimpleFileVisitor[NioPath]() {
       override def postVisitDirectory(dir: NioPath, exc: IOException): FileVisitResult = {

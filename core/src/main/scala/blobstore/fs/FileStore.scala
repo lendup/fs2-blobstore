@@ -19,14 +19,13 @@ package fs
 import java.nio.file.{Files, Paths, Path => NioPath}
 import java.util.Date
 
-import scala.collection.JavaConverters._
+import cats.effect.{Blocker, ContextShift, Sync}
 import cats.implicits._
-import cats.effect.{ContextShift, Sync}
-import fs2.{Sink, Stream}
+import fs2.{Pipe, Stream}
 
-import scala.concurrent.ExecutionContext
+import scala.collection.JavaConverters._
 
-final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F]) extends Store[F] {
+final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blocker: Blocker)(implicit F: Sync[F]) extends Store[F] {
   val absRoot: String = fsroot.toAbsolutePath.normalize.toString
 
   override def list(path: Path): fs2.Stream[F, Path] = {
@@ -55,12 +54,12 @@ final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecuti
     isDir.ifM(files, isFile.ifM(file, Stream.empty.covaryAll[F, Path]))
   }
 
-  override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = fs2.io.file.readAll[F](path, blockingExecutionContext, chunkSize)
+  override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = fs2.io.file.readAll[F](path, blocker, chunkSize)
 
-  override def put(path: Path): Sink[F, Byte] = { in =>
+  override def put(path: Path): Pipe[F, Byte, Unit] = { in =>
     val mkdir = Stream.eval(F.delay(Files.createDirectories(_toNioPath(path).getParent)).as(true))
     mkdir.ifM(
-      fs2.io.file.writeAll(path, blockingExecutionContext).apply(in),
+      fs2.io.file.writeAll(path, blocker).apply(in),
       Stream.raiseError[F](new Exception(s"failed to create dir: $path"))
     )
   }

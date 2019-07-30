@@ -43,7 +43,7 @@ The three main activities in a key/value store are modeled like:
  ```scala
  def list(path: Path): fs2.Stream[F, Path]
  def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte]
- def put(path: Path, contentLength: Long): fs2.Sink[F, Byte]  
+ def put(path: Path, contentLength: Long): fs2.Pipe[F, Byte, Unit]  
  ```  
 
 Note that `list` and `get` are modeled as streams since they are reading 

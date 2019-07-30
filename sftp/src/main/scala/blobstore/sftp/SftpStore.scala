@@ -18,18 +18,16 @@ package sftp
 
 import java.util.Date
 
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 import com.jcraft.jsch._
 
-import scala.util.Try
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.util.Try
 
-final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
+final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocker: Blocker)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
   extends Store[F] {
-  import implicits._
-
   import Path.SEP
+  import implicits._
 
   /**
     * TODO: This is an unsafe list method since it uses ChannelSftp.ls(String) which loads the entire result in memory.
@@ -69,10 +67,10 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
   }
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blocker = blocker)
   }
 
-  override def put(path: Path): fs2.Sink[F, Byte] = { in =>
+  override def put(path: Path): fs2.Pipe[F, Byte, Unit] = { in =>
     val put = F.delay {
       mkdirs(path)
       // scalastyle:off
@@ -96,7 +94,7 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
   override def copy(src: Path, dst: Path): F[Unit] = {
     val s = for {
       _ <- fs2.Stream.eval(F.delay(mkdirs(dst)))
-      _ <- get(src).to(this.bufferedPut(dst, blockingExecutionContext))
+      _ <- get(src).through(this.bufferedPut(dst, blocker))
     } yield ()
 
     s.compile.drain
@@ -128,12 +126,12 @@ object SftpStore {
     * @param fa F[ChannelSftp] how to connect to SFTP server
     * @return Stream[ F, SftpStore[F] ] stream with one SftpStore, sftp channel will disconnect once stream is done.
     */
-  def apply[F[_]: ContextShift](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
+  def apply[F[_]: ContextShift](absRoot: String, fa: F[ChannelSftp], blocker: Blocker)(implicit F: ConcurrentEffect[F])
   : fs2.Stream[F, SftpStore[F]] = {
     fs2.Stream.bracket(fa)(
       release = channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() }
     ).flatMap { channel =>
-      fs2.Stream.eval(F.delay(SftpStore[F](absRoot, channel, blockingExecutionContext)))
+      fs2.Stream.eval(F.delay(SftpStore[F](absRoot, channel, blocker)))
     }
   }
 }
