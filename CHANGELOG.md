@@ -1,3 +1,8 @@
+v0.4.2
+======
+* Add test to ensure remove() does not fail for nonexistent paths
+* Fix remove() in FileStore, SftpStore, to meet the above requirement
+
 v0.4.1
 ======
 * Fixed path extension to work on a path that is created with just a bucket and no key [#37](https://github.com/lendup/fs2-blobstore/pull/37)

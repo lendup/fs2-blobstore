@@ -102,7 +102,14 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     s.compile.drain
   }
 
-  override def remove(path: Path): F[Unit] = F.delay(channel.rm(path))
+  override def remove(path: Path): F[Unit] = F.delay({
+    try {
+      channel.rm(path)
+    } catch {
+      // Let the remove() call succeed if there is no file at this path
+      case e: SftpException if e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE => ()
+    }
+  })
 
   implicit def _pathToString(path: Path): String = s"$absRoot$SEP${path.root}$SEP${path.key}"
 

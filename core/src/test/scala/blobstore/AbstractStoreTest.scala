@@ -265,6 +265,12 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
     store.list(srcDir)
       .compile.drain.unsafeRunSync().isEmpty must be(true)
   }
+  
+  it should "succeed on remove when path does not exist" in {
+    val dir = dirPath("remove-nonexistent-path")
+    val path = dir / "no-file.txt"
+    store.remove(path).unsafeRunSync()
+  }
 
   it should "support putting content with no size" in {
     val dir: Path = dirPath("put-no-size")
