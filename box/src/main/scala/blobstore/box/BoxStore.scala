@@ -20,7 +20,7 @@ package box
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
 import fs2.{Sink, Stream}
 
@@ -112,7 +112,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
           bothStreams._1.close()
         }))).getOrElse(Stream.fromIterator(Iterator.empty))
 
-        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blocker = Blocker.liftExecutionContext(blockingExecutionContext))
 
         s <- readInput concurrently dl
     } yield s

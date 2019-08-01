@@ -3,7 +3,7 @@ package blobstore
 import java.nio.charset.Charset
 import java.nio.file.Files
 
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import cats.effect.laws.util.TestInstances
 import cats.implicits._
 import fs2.Sink
@@ -35,7 +35,7 @@ class StoreOpsTest extends FlatSpec with MustMatchers with TestInstances {
     fs2.Stream.bracket(IO(Files.createTempFile("test-file", ".bin"))) { p =>
       IO(p.toFile.delete).void
     }.flatMap { p =>
-      fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAll(p, ec)).drain ++
+      fs2.Stream.emits(bytes).covary[IO].to(fs2.io.file.writeAll(p, blocker = Blocker.liftExecutionContext(ec))).drain ++
         fs2.Stream.eval(store.put(p, Path("path/to/file.txt"), ec))
     }.compile.drain.unsafeRunSync()
     store.buf.toArray must be(bytes)

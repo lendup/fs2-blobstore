@@ -17,9 +17,10 @@ Copyright 2018 LendUp Global, Inc.
 import java.io.OutputStream
 import java.nio.file.Files
 
-import cats.effect.{ConcurrentEffect, ContextShift, Effect, Sync}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Effect, Sync}
 import fs2.{Pipe, Pull, Stream}
 import cats.implicits._
+
 import scala.concurrent.ExecutionContext
 
 package object blobstore {
@@ -35,8 +36,8 @@ package object blobstore {
   : Pipe[F, Byte, (Long, Stream[F, Byte])] = {
     in => Stream.bracket(Sync[F].delay(Files.createTempFile("bufferToDisk", ".bin")))(
       p => Sync[F].delay(p.toFile.delete).void).flatMap { p =>
-        in.to(fs2.io.file.writeAll(p, blockingExecutionContext)).drain ++
-        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, blockingExecutionContext, chunkSize)))
+        in.to(fs2.io.file.writeAll(p, Blocker.liftExecutionContext(blockingExecutionContext))).drain ++
+        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, Blocker.liftExecutionContext(blockingExecutionContext), chunkSize)))
     }
   }
 

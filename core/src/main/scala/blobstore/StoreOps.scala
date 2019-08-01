@@ -17,7 +17,7 @@ package blobstore
 
 import java.nio.charset.Charset
 
-import cats.effect.{ConcurrentEffect, ContextShift, Effect, Sync}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Effect, Sync}
 import fs2.{Pipe, Sink, Stream}
 import cats.implicits._
 
@@ -46,7 +46,7 @@ trait StoreOps {
       */
     def put(src: java.nio.file.Path, dst: Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
       fs2.io.file
-        .readAll(src, blockingExecutionContext, 4096)
+        .readAll(src, Blocker.liftExecutionContext(blockingExecutionContext), 4096)
         .to(store.put(dst.copy(size = Option(src.toFile.length))))
         .compile.drain
 
@@ -79,7 +79,7 @@ trait StoreOps {
       * @return F[Unit]
       */
     def get(src: Path, dst: java.nio.file.Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
-      store.get(src, 4096).to(fs2.io.file.writeAll(dst, blockingExecutionContext)).compile.drain
+      store.get(src, 4096).to(fs2.io.file.writeAll(dst, Blocker.liftExecutionContext(blockingExecutionContext))).compile.drain
 
     /**
       * getContents with default UTF8 decoder

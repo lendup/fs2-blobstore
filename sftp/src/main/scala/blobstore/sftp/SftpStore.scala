@@ -18,7 +18,7 @@ package sftp
 
 import java.util.Date
 
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
 import com.jcraft.jsch._
 
 import scala.util.Try
@@ -69,7 +69,7 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
   }
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blocker = Blocker.liftExecutionContext(blockingExecutionContext))
   }
 
   override def put(path: Path): fs2.Sink[F, Byte] = { in =>

@@ -18,7 +18,7 @@ package s3
 
 import java.io.{InputStream, PipedInputStream, PipedOutputStream}
 
-import cats.effect.{ConcurrentEffect, ContextShift, Effect}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Effect}
 import cats.syntax.functor._
 import cats.syntax.flatMap._
 import fs2.{Chunk, Sink, Stream}
@@ -67,7 +67,7 @@ final case class S3Store[F[_] : ConcurrentEffect : ContextShift](transferManager
 
   override def get(path: Path, chunkSize: Int): Stream[F, Byte] = {
     val is: F[InputStream] = F.delay(s3.getObject(path.root, path.key).getObjectContent)
-    fs2.io.readInputStream(is, chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+    fs2.io.readInputStream(is, chunkSize, closeAfterUse = true, blocker = Blocker.liftExecutionContext(blockingExecutionContext))
   }
 
   override def put(path: Path): Sink[F, Byte] = { in =>
