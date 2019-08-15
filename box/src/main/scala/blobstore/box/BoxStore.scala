@@ -32,7 +32,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
   val rootFolder = new BoxFolder(api, rootFolderId)
 
   def boxItemAtPath(path: Path): Option[BoxItem] = {
-    boxItemAtPath(rootFolder, path.root :: path.key.split("/").toList)
+    boxItemAtPath(rootFolder, (path.root :: path.key.split("/").toList).filter(_.nonEmpty))
   }
 
   def boxItemAtPath(parentFolder: BoxFolder, pathParts: List[String]): Option[BoxItem] = {
