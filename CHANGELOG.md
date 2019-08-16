@@ -1,3 +1,7 @@
+v0.4.3
+======
+* Fix BoxStore list method which was broken for directories in the root level
+
 v0.4.2
 ======
 * Add test to ensure remove() does not fail for nonexistent paths
