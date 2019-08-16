@@ -105,6 +105,28 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
 
     store.listAll(dir).unsafeRunSync().isEmpty must be(true)
   }
+  
+  // We've had some bugs involving directories at the root level, since it is a bit of an edge case.
+  // Worth noting that that most of these tests operate on files that are in nested directories, avoiding
+  // any problems that there might be with operating on a root level file/directory.
+  it should "listAll lists files in a root level directory" in {
+    import cats.implicits._
+    val rootDir = Path(root)
+    val paths = (1 to 2)
+      .toList
+      .map(i => s"filename-$i.txt")
+      .map(writeFile(store, rootDir))
+
+    val exp = paths.map(p => s"${p.key}").toSet
+    
+    // Not doing equals comparison because this directory contains files from other tests.
+    // Also, some stores will prepend a "/" before the filenames. Doing a string comparison to ignore this detail for now.
+    val pathsListed = store.listAll(rootDir).unsafeRunSync().map(_.key).toSet.toString()
+    exp.foreach(pathsListed.contains(_) must be(true))
+
+    val io: IO[List[Unit]] = paths.map(store.remove).sequence
+    io.unsafeRunSync()
+  }
 
   it should "list files and directories correctly" in {
     import cats.implicits._
