@@ -20,14 +20,14 @@ package box
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{Concurrent, ContextShift}
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
 import fs2.{Sink, Stream}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
+final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 
@@ -71,7 +71,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
   override def list(path: Path): fs2.Stream[F, Path] = {
     for {
       itemOpt <- Stream.eval(F.delay(boxItemAtPath(path)))
-      item <- itemOpt.foldMap[Stream[F,BoxItem]](Stream.emit(_))
+      item <- itemOpt.foldMap[Stream[F, BoxItem]](Stream.emit)
 
       listFiles = Stream.eval(F.delay(item.asInstanceOf[BoxFolder]))
           .flatMap(folder => Stream.fromIterator(folder.getChildren.iterator.asScala))
