@@ -18,13 +18,10 @@ package sftp
 
 import java.util.Date
 
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{ConcurrentEffect, ContextShift, IO}
 import com.jcraft.jsch._
-
-import cats.syntax.apply._
-import cats.syntax.functor._
+import fs2.concurrent.Queue
 import scala.util.Try
-import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import java.io.OutputStream
 
@@ -35,62 +32,44 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
   import Path.SEP
 
   /**
-    * TODO: This is an unsafe list method since it uses ChannelSftp.ls(String) which loads the entire result in memory.
-    *       A better approach would be to use ChannelSftp.ls(String, LsEntrySelector) and provide a function that is
-    *       called with every LSEntry returned, this is how ChannelSftp.ls is defined:
-    *
-    *         public java.util.Vector ls(String path) throws SftpException{
-    *           final java.util.Vector v = new Vector();
-    *           LsEntrySelector selector = new LsEntrySelector(){
-    *             public int select(LsEntry entry){
-    *               v.addElement(entry);
-    *               return CONTINUE;
-    *             }
-    *           };
-    *           ls(path, selector);
-    *           return v;
-    *         }
-    *
     * @param path path to list
     * @return Stream[F, Path]
     */
   override def list(path: Path): fs2.Stream[F, Path] = {
-    val ls: F[List[ChannelSftp#LsEntry]] = CS
-      .evalOn(blockingExecutionContext)(F.delay(Option(channel.ls(path))))
-      .map {
-        case Some(list) =>
-          list.asScala.toList.asInstanceOf[List[ChannelSftp#LsEntry]]
-        case None => List.empty[ChannelSftp#LsEntry]
-      }
 
-    fs2.Stream
-      .eval(ls)
-      .flatMap(fs2.Stream.emits)
-      .filter(e => e.getFilename != "." && e.getFilename != "..")
-      .map { entry =>
-        val newPath =
-          if (path.filename == entry.getFilename) path
-          else path / entry.getFilename
-        newPath.copy(
-          size = Option(entry.getAttrs.getSize),
-          isDir = entry.getAttrs.isDir,
-          lastModified =
-            Option(entry.getAttrs.getMTime).map(i => new Date(i.toLong * 1000))
-        )
+    def entrySelector(cb: ChannelSftp#LsEntry => Unit): ChannelSftp.LsEntrySelector = new ChannelSftp.LsEntrySelector{
+      def select(entry: ChannelSftp#LsEntry): Int = {
+        cb(entry)
+        ChannelSftp.LsEntrySelector.CONTINUE
       }
+    }
+
+  for{
+    q <- fs2.Stream.eval(Queue.bounded[F, Option[ChannelSftp#LsEntry]](64))
+    _ <- fs2.Stream.eval(
+      CS.evalOn(blockingExecutionContext)(F.flatMap(F.attempt(F.delay(channel.ls(path, entrySelector(e => F.runAsync(q.enqueue1(Some(e)))(_ => IO.unit).unsafeRunSync())))))(_ => q.enqueue1(None)))
+    )
+    entry <- q.dequeue.unNoneTerminate.filter(e => e.getFilename != "." && e.getFilename != "..")
+  } yield {
+    val newPath = if (path.filename == entry.getFilename) path else path / entry.getFilename
+    newPath.copy(
+      size = Option(entry.getAttrs.getSize),
+      isDir = entry.getAttrs.isDir,
+      lastModified = Option(entry.getAttrs.getMTime).map(i => new Date(i.toLong * 1000))
+    )
   }
+}
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    fs2.io.readInputStream(F.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+    fs2.io.readInputStream(CS.evalOn(blockingExecutionContext)(F.delay(channel.get(path))), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
   }
 
   override def put(path: Path): fs2.Sink[F, Byte] = { in =>
-    val put = CS.evalOn(blockingExecutionContext)(F.delay {
-      mkdirs(path)
+    val put = F.flatMap(mkdirs(path))(_ => CS.evalOn(blockingExecutionContext)(F.delay {
       // scalastyle:off
       channel.put(/* dst */ path, /* monitor */ null, /* mode */ ChannelSftp.OVERWRITE, /* offset */ 0)
       // scalastyle:on
-    })
+    }))
     
     def close(os: OutputStream): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay(os.close()))
 
@@ -102,9 +81,9 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     pull.stream
   }
 
-  override def move(src: Path, dst: Path): F[Unit] = mkdirs(dst) *> CS.evalOn(blockingExecutionContext)(F.delay {
+  override def move(src: Path, dst: Path): F[Unit] = F.flatMap(mkdirs(dst))(_ => CS.evalOn(blockingExecutionContext)(F.delay {
     channel.rename(src, dst)
-  })
+  }))
 
   override def copy(src: Path, dst: Path): F[Unit] = {
     val s = for {
@@ -115,7 +94,7 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     s.compile.drain
   }
 
-  override def remove(path: Path): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay {
+  override def remove(path: Path): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay{
     try {
       channel.rm(path)
     } catch {
@@ -143,7 +122,8 @@ object SftpStore {
     * @param fa F[ChannelSftp] how to connect to SFTP server
     * @return Stream[ F, SftpStore[F] ] stream with one SftpStore, sftp channel will disconnect once stream is done.
     */
-  def apply[F[_]: ContextShift](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
+
+  def apply[F[_]](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
   : fs2.Stream[F, SftpStore[F]] = {
     fs2.Stream.bracket(fa)(
       release = channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() }
