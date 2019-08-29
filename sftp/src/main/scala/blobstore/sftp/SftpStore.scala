@@ -21,9 +21,12 @@ import java.util.Date
 import cats.effect.{ConcurrentEffect, ContextShift}
 import com.jcraft.jsch._
 
+import cats.syntax.apply._
+import cats.syntax.functor._
 import scala.util.Try
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
+import java.io.OutputStream
 
 final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
   extends Store[F] {
@@ -52,20 +55,29 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     * @return Stream[F, Path]
     */
   override def list(path: Path): fs2.Stream[F, Path] = {
-    val l: F[Seq[Path]] = F.delay {
-      Try(channel.ls(path).asScala.toList).getOrElse(List.empty)
-        .map(_.asInstanceOf[ChannelSftp#LsEntry])
-        .filterNot(e => e.getFilename == "." || e.getFilename == "..")
-        .map { entry =>
-          val newPath = if (path.filename == entry.getFilename) path else path / entry.getFilename
-          newPath.copy(
-            size = Option(entry.getAttrs.getSize),
-            isDir = entry.getAttrs.isDir,
-            lastModified = Option(entry.getAttrs.getMTime).map(i => new Date(i.toLong * 1000))
-          )
-        }
-    }
-    fs2.Stream.eval(l).flatMap(x => fs2.Stream.emits(x))
+    val ls: F[List[ChannelSftp#LsEntry]] = CS
+      .evalOn(blockingExecutionContext)(F.delay(Option(channel.ls(path))))
+      .map {
+        case Some(list) =>
+          list.asScala.toList.asInstanceOf[List[ChannelSftp#LsEntry]]
+        case None => List.empty[ChannelSftp#LsEntry]
+      }
+
+    fs2.Stream
+      .eval(ls)
+      .flatMap(fs2.Stream.emits)
+      .filter(e => e.getFilename != "." && e.getFilename != "..")
+      .map { entry =>
+        val newPath =
+          if (path.filename == entry.getFilename) path
+          else path / entry.getFilename
+        newPath.copy(
+          size = Option(entry.getAttrs.getSize),
+          isDir = entry.getAttrs.isDir,
+          lastModified =
+            Option(entry.getAttrs.getMTime).map(i => new Date(i.toLong * 1000))
+        )
+      }
   }
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
@@ -73,25 +85,26 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
   }
 
   override def put(path: Path): fs2.Sink[F, Byte] = { in =>
-    val put = F.delay {
+    val put = CS.evalOn(blockingExecutionContext)(F.delay {
       mkdirs(path)
       // scalastyle:off
       channel.put(/* dst */ path, /* monitor */ null, /* mode */ ChannelSftp.OVERWRITE, /* offset */ 0)
       // scalastyle:on
-    }
+    })
+    
+    def close(os: OutputStream): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay(os.close()))
 
     val pull = for {
-      os <- fs2.Pull.acquireCancellable(put)(ch => F.delay(ch.close()))
-      _ <- _writeAllToOutputStream1(in, os.resource)
+      os <- fs2.Pull.acquireCancellable(put)(ch => close(ch))
+      _ <- _writeAllToOutputStream1(in, os.resource, blockingExecutionContext)
     } yield ()
 
     pull.stream
   }
 
-  override def move(src: Path, dst: Path): F[Unit] = F.delay {
-    mkdirs(dst)
+  override def move(src: Path, dst: Path): F[Unit] = mkdirs(dst) *> CS.evalOn(blockingExecutionContext)(F.delay {
     channel.rename(src, dst)
-  }
+  })
 
   override def copy(src: Path, dst: Path): F[Unit] = {
     val s = for {
@@ -102,7 +115,7 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
     s.compile.drain
   }
 
-  override def remove(path: Path): F[Unit] = F.delay({
+  override def remove(path: Path): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay {
     try {
       channel.rm(path)
     } catch {
@@ -113,12 +126,14 @@ final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blocking
 
   implicit def _pathToString(path: Path): String = s"$absRoot$SEP${path.root}$SEP${path.key}"
 
-  private def mkdirs(path: Path): Unit = {
-    _pathToString(path).split(SEP.toChar).drop(1).foldLeft("") { case (acc, s) =>
-      Try(channel.mkdir(acc))
-      s"$acc$SEP$s"
+  private def mkdirs(path: Path): F[Unit] = CS.evalOn(blockingExecutionContext) {
+    F.delay {
+      _pathToString(path).split(SEP.toChar).drop(1).foldLeft("") { case (acc, s) =>
+        Try(channel.mkdir(acc))
+        s"$acc$SEP$s"
+      }
+      ()
     }
-    ()
   }
 }
 

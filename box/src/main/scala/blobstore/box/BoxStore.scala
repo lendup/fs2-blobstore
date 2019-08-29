@@ -16,7 +16,6 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package box
 
-
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
@@ -182,7 +181,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
 
     val consume: ((OutputStream, InputStream, BoxFolder)) => Stream[F, Unit] = ios => {
       val putToBox = Stream.eval(F.delay(ios._3.uploadFile(ios._2, pathSplit._2)).void)
-      val writeBytes = _writeAllToOutputStream1(in, ios._1).stream ++ Stream.eval(F.delay(ios._1.close()))
+      val writeBytes = _writeAllToOutputStream1(in, ios._1, blockingExecutionContext).stream ++ Stream.eval(F.delay(ios._1.close()))
       putToBox concurrently writeBytes
     }
 

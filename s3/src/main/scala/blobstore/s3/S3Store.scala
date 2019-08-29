@@ -88,7 +88,7 @@ final case class S3Store[F[_] : ConcurrentEffect : ContextShift](transferManager
       })
 
       val writeBytes: Stream[F, Unit] =
-        _writeAllToOutputStream1(in, ios._1).stream ++ Stream.eval(F.delay(ios._1.close()))
+        _writeAllToOutputStream1(in, ios._1, blockingExecutionContext).stream ++ Stream.eval(F.delay(ios._1.close()))
 
       putToS3 concurrently writeBytes
     }
