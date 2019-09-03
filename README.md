@@ -16,9 +16,9 @@ fs2-blobstore is deployed to maven central, add to build.sbt:
 
 ```sbtshell
 libraryDependencies ++= Seq(
-  "com.lendup.fs2-blobstore" %% "core" % "0.4.+",
-  "com.lendup.fs2-blobstore" %% "sftp" % "0.4.+",
-  "com.lendup.fs2-blobstore" %% "s3" % "0.4.+"
+  "com.lendup.fs2-blobstore" %% "core" % "0.5.+",
+  "com.lendup.fs2-blobstore" %% "sftp" % "0.5.+",
+  "com.lendup.fs2-blobstore" %% "s3" % "0.5.+"
 )
 ```
 
