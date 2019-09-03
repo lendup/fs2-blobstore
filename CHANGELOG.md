@@ -1,3 +1,7 @@
+v0.5.0
+======
+* Add GcsStore (Google Cloud storage) [#46](https://github.com/lendup/fs2-blobstore/pull/46)
+
 v0.4.3
 ======
 * Fix BoxStore list method which was broken for directories in the root level
