@@ -27,7 +27,7 @@ object Path {
 
   def apply(path: String): Path = {
     val x = path
-      .replaceFirst("^(s3:/)?/", "")
+      .replaceFirst("^([a-zA-Z][-.+a-zA-Z0-9]+:/)?/", "") // The regex identifies a scheme as described in https://www.ietf.org/rfc/rfc2396.txt chapter 3.1 "Scheme Component"
       .split("/", 2)
     val r = x(0)
     val k = if (x.length <= 1) "" else x(1)

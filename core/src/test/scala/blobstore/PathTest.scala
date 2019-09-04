@@ -21,8 +21,10 @@ import blobstore.PathOps._
 class PathTest extends FlatSpec with MustMatchers {
   behavior of "Path"
   it should "parse string path to file correctly" in {
-    val path = Path("s3://some-bucket/path/to/file")
-    path must be(Path("some-bucket", "path/to/file", None, false, None))
+    val s3Path = Path("s3://some-bucket/path/to/file")
+    val gcsPath = Path("gcs://some-bucket/path/to/file")
+    s3Path must be(Path("some-bucket", "path/to/file", None, false, None))
+    gcsPath must be(Path("some-bucket", "path/to/file", None, false, None))
   }
 
   it should "parse string path to file without prefix correctly" in {
