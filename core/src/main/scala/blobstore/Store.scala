@@ -15,7 +15,7 @@ Copyright 2018 LendUp Global, Inc.
 */
 package blobstore
 
-import fs2.{Sink, Stream}
+import fs2.{Pipe, Stream}
 
 trait Store[F[_]] {
 
@@ -46,7 +46,7 @@ trait Store[F[_]] {
     * @param path to put
     * @return sink of bytes
     */
-  def put(path: Path): Sink[F, Byte]
+  def put(path: Path): Pipe[F, Byte, Unit]
 
   /**
     * Moves bytes from srcPath to dstPath. Stores should optimize to use native move functions to avoid data transfer.

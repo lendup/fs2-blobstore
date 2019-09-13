@@ -17,26 +17,25 @@ Copyright 2018 LendUp Global, Inc.
 import java.io.OutputStream
 import java.nio.file.Files
 
-import cats.effect.{ContextShift, Sync}
+import cats.effect.{ContextShift, Sync, Blocker}
 import fs2.{Pipe, Pull, Stream}
 import cats.implicits._
-import scala.concurrent.ExecutionContext
 
 package object blobstore {
-  protected[blobstore] def _writeAllToOutputStream1[F[_]](in: Stream[F, Byte], out: OutputStream, blockingExecutionContext: ExecutionContext)(
+  protected[blobstore] def _writeAllToOutputStream1[F[_]](in: Stream[F, Byte], out: OutputStream, blocker: Blocker)(
     implicit F: Sync[F], CS: ContextShift[F]): Pull[F, Nothing, Unit] = {
     in.pull.uncons.flatMap {
       case None => Pull.done
-      case Some((hd, tl)) => Pull.eval[F, Unit](CS.evalOn(blockingExecutionContext)(F.delay(out.write(hd.toArray)))) >> _writeAllToOutputStream1(tl, out, blockingExecutionContext)
+      case Some((hd, tl)) => Pull.eval[F, Unit](blocker.delay(out.write(hd.toArray))) >> _writeAllToOutputStream1(tl, out, blocker)
     }
   }
 
-  protected[blobstore] def bufferToDisk[F[_]](chunkSize: Int, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F])
+  protected[blobstore] def bufferToDisk[F[_]](chunkSize: Int, blocker: Blocker)(implicit F: Sync[F], CS: ContextShift[F])
   : Pipe[F, Byte, (Long, Stream[F, Byte])] = {
     in => Stream.bracket(F.delay(Files.createTempFile("bufferToDisk", ".bin")))(
       p => F.delay(p.toFile.delete).void).flatMap { p =>
-        in.to(fs2.io.file.writeAll(p, blockingExecutionContext)).drain ++
-        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, blockingExecutionContext, chunkSize)))
+        in.through(fs2.io.file.writeAll(p, blocker)).drain ++
+        Stream.emit((p.toFile.length, fs2.io.file.readAll(p, blocker, chunkSize)))
     }
   }
 
