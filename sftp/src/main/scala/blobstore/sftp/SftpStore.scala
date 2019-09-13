@@ -19,42 +19,50 @@ package sftp
 import java.util.Date
 
 import com.jcraft.jsch._
-import fs2.concurrent.Queue
+import cats.instances.option._
 
 import scala.util.Try
 import scala.concurrent.ExecutionContext
 import java.io.OutputStream
 
+import cats.Traverse
 import cats.effect.{ConcurrentEffect, ContextShift, Resource, IO}
+import cats.effect.concurrent.{MVar, Semaphore}
+import fs2.concurrent.Queue
 
 final class SftpStore[F[_]](
   absRoot: String,
   session: Session,
   blockingExecutionContext: ExecutionContext,
-  pool: Queue[F, ChannelSftp],
+  mVar: MVar[F, ChannelSftp],
+  semaphore: Option[Semaphore[F]],
   connectTimeout: Int
 )(implicit F: ConcurrentEffect[F], CS: ContextShift[F]) extends Store[F] {
   import implicits._
 
   import Path.SEP
 
-  private def openChannel: F[ChannelSftp] = CS.evalOn(blockingExecutionContext)(F.delay{
-    val ch = session.openChannel("sftp").asInstanceOf[ChannelSftp]
-    ch.connect(connectTimeout)
-    ch
-  })
+  private val openChannel: F[ChannelSftp] = {
+    val openF = CS.evalOn(blockingExecutionContext)(F.delay{
+      val ch = session.openChannel("sftp").asInstanceOf[ChannelSftp]
+      ch.connect(connectTimeout)
+      ch
+    })
+    semaphore.fold(openF){s =>
+      F.ifM(s.tryAcquire)(openF, getChannel)
+    }
+  }
 
-  private def closeChannel(ch: ChannelSftp): F[Unit] =
-    CS.evalOn(blockingExecutionContext)(F.delay(ch.disconnect()))
+  private val getChannel = F.flatMap(mVar.tryTake) {
+    case Some(channel) => F.pure(channel)
+    case None => openChannel
+  }
 
   private def channelResource: Resource[F, ChannelSftp] = Resource.make{
-    F.flatMap(pool.tryDequeue1) {
-      case Some(channel) => F.pure(channel)
-      case None => openChannel
-    }
+    getChannel
   }{
     case ch if ch.isClosed => F.unit
-    case ch => F.ifM(pool.offer1(ch))(F.unit, closeChannel(ch))
+    case ch => F.ifM(mVar.tryPut(ch))(F.unit, SftpStore.closeChannel(semaphore, blockingExecutionContext)(ch))
   }
 
   /**
@@ -158,11 +166,19 @@ object SftpStore {
     absRoot: String,
     fa: F[Session],
     blockingExecutionContext: ExecutionContext,
-    maxChannels: Int = 10,
+    maxChannels: Option[Long] = None,
     connectTimeout: Int = 10000
   )(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): fs2.Stream[F, SftpStore[F]] =
-    for {
-      session <- fs2.Stream.bracket(fa)(session => F.delay(session.disconnect()))
-      pool <- fs2.Stream.eval(Queue.bounded[F, ChannelSftp](maxChannels))
-    } yield new SftpStore[F](absRoot, session, blockingExecutionContext, pool, connectTimeout)
+    if (maxChannels.exists(_ < 1)) {
+      fs2.Stream.raiseError[F](new IllegalArgumentException(s"maxChannels must be >= 1"))
+    } else {
+      for {
+        session <- fs2.Stream.bracket(fa)(session => F.delay(session.disconnect()))
+        semaphore <- fs2.Stream.eval(Traverse[Option].sequence(maxChannels.map(Semaphore.apply[F])))
+        mVar <- fs2.Stream.bracket(MVar.empty[F, ChannelSftp])(mVar => F.flatMap(mVar.tryTake)(_.fold(F.unit)(closeChannel[F](semaphore, blockingExecutionContext))))
+      } yield new SftpStore[F](absRoot, session, blockingExecutionContext, mVar, semaphore, connectTimeout)
+    }
+
+  private def closeChannel[F[_]](semaphore: Option[Semaphore[F]], blockingExecutionContext: ExecutionContext)(ch: ChannelSftp)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): F[Unit] =
+    F.productR(semaphore.fold(F.unit)(_.release))(CS.evalOn(blockingExecutionContext)(F.delay(ch.disconnect())))
 }

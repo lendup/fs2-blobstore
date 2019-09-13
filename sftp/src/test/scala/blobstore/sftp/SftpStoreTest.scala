@@ -20,8 +20,8 @@ import java.nio.file.Paths
 import java.util.Properties
 
 import cats.effect.IO
+import cats.effect.concurrent.MVar
 import com.jcraft.jsch.{ChannelSftp, JSch}
-import fs2.concurrent.Queue
 
 class SftpStoreTest extends AbstractStoreTest {
 
@@ -47,8 +47,8 @@ class SftpStoreTest extends AbstractStoreTest {
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  val queue = Queue.bounded[IO, ChannelSftp](1).unsafeRunSync()
-  override val store: Store[IO] = new SftpStore[IO]("/", session, blockingExecutionContext, queue, 10000)
+  val mVar = MVar.empty[IO, ChannelSftp].unsafeRunSync()
+  override val store: Store[IO] = new SftpStore[IO]("/", session, blockingExecutionContext, mVar, None, 10000)
   override val root: String = "sftp_tests"
 
   // remove dirs created by AbstractStoreTest
