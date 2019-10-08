@@ -17,7 +17,7 @@ package blobstore
 
 import java.nio.charset.Charset
 
-import cats.effect.{ConcurrentEffect, ContextShift, Effect, Sync}
+import cats.effect.{ContextShift, Sync}
 import fs2.{Pipe, Sink, Stream}
 import cats.implicits._
 
@@ -58,7 +58,7 @@ trait StoreOps {
       * @param path Path to write to
       * @return Sink[F, Byte] buffered sink
       */
-    def bufferedPut(path: Path, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): Sink[F, Byte] = in =>
+    def bufferedPut(path: Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): Sink[F, Byte] = in =>
       in.through(bufferToDisk(4096, blockingExecutionContext)).flatMap { case (n, s) =>
         s.to(store.put(path.copy(size = Some(n))))
       }
@@ -86,7 +86,7 @@ trait StoreOps {
       * @param path Path to get
       * @return F[String] with file contents
       */
-    def getContents(path: Path)(implicit F: Effect[F]): F[String] = getContents(path, fs2.text.utf8Decode)
+    def getContents(path: Path)(implicit F: Sync[F]): F[String] = getContents(path, fs2.text.utf8Decode)
 
     /**
       * Decode get bytes from path into a string using decoder and return concatenated string.
@@ -97,7 +97,7 @@ trait StoreOps {
       * @param decoder Pipe[F, Byte, String]
       * @return F[String] with file contents
       */
-    def getContents(path: Path, decoder: Pipe[F, Byte, String])(implicit F: Effect[F]): F[String] = {
+    def getContents(path: Path, decoder: Pipe[F, Byte, String])(implicit F: Sync[F]): F[String] = {
       get(path).through(decoder).compile.toList.map(_.mkString)
     }
 

@@ -18,14 +18,14 @@ package sftp
 
 import java.util.Date
 
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.{Concurrent, ContextShift}
 import com.jcraft.jsch._
 
 import scala.util.Try
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F], CS: ContextShift[F])
+final case class SftpStore[F[_]](absRoot: String, channel: ChannelSftp, blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F])
   extends Store[F] {
   import implicits._
 
@@ -128,7 +128,7 @@ object SftpStore {
     * @param fa F[ChannelSftp] how to connect to SFTP server
     * @return Stream[ F, SftpStore[F] ] stream with one SftpStore, sftp channel will disconnect once stream is done.
     */
-  def apply[F[_]: ContextShift](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: ConcurrentEffect[F])
+  def apply[F[_]](absRoot: String, fa: F[ChannelSftp], blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F])
   : fs2.Stream[F, SftpStore[F]] = {
     fs2.Stream.bracket(fa)(
       release = channel => F.delay { channel.disconnect() ; channel.getSession.disconnect() }
