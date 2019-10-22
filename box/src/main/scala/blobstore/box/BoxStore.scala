@@ -16,7 +16,6 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package box
 
-
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
@@ -27,7 +26,7 @@ import fs2.{Sink, Stream}
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F]) extends Store[F] {
+final class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 
@@ -182,7 +181,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
 
     val consume: ((OutputStream, InputStream, BoxFolder)) => Stream[F, Unit] = ios => {
       val putToBox = Stream.eval(F.delay(ios._3.uploadFile(ios._2, pathSplit._2)).void)
-      val writeBytes = _writeAllToOutputStream1(in, ios._1).stream ++ Stream.eval(F.delay(ios._1.close()))
+      val writeBytes = _writeAllToOutputStream1(in, ios._1, blockingExecutionContext).stream ++ Stream.eval(F.delay(ios._1.close()))
       putToBox concurrently writeBytes
     }
 
@@ -235,4 +234,12 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
   override def remove(path: Path): F[Unit] = F.delay {
     boxFileAtPath(path).foreach(_.delete())
   }
+}
+
+object BoxStore{
+  def apply[F[_]](
+    api: BoxAPIConnection,
+    rootFolderId: String,
+    blockingExecutionContext: ExecutionContext
+  )(implicit F: Concurrent[F], CS: ContextShift[F]): BoxStore[F] = new BoxStore(api, rootFolderId, blockingExecutionContext)
 }

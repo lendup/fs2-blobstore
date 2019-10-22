@@ -14,7 +14,7 @@ import fs2.{Chunk, Sink, Stream}
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
-final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: ExecutionContext, acls: List[Acl] = Nil)(implicit F: Sync[F], CS: ContextShift[F]) extends Store[F] {
+final class GcsStore[F[_]](storage: Storage, blockingExecutionContext: ExecutionContext, acls: List[Acl] = Nil)(implicit F: Sync[F], CS: ContextShift[F]) extends Store[F] {
 
   private def _chunk(pg: Page[Blob]): Chunk[Path] = {
     val (dirs, files) = pg.getValues.asScala.toSeq.partition(_.isDirectory)
@@ -70,4 +70,13 @@ final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: Exec
 
   def remove(path: Path): F[Unit] =
     CS.evalOn(blockingExecutionContext)(F.map(F.delay(storage.delete(path.root, path.key)))(_ => ()))
+}
+
+
+object GcsStore{
+  def apply[F[_]](
+    storage: Storage,
+    blockingExecutionContext: ExecutionContext,
+    acls: List[Acl]
+  )(implicit F: Sync[F], CS: ContextShift[F]): GcsStore[F] = new GcsStore(storage, blockingExecutionContext, acls)
 }

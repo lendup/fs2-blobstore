@@ -26,7 +26,7 @@ import fs2.{Sink, Stream}
 
 import scala.concurrent.ExecutionContext
 
-final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F]) extends Store[F] {
+final class FileStore[F[_]](fsroot: NioPath, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]) extends Store[F] {
   val absRoot: String = fsroot.toAbsolutePath.normalize.toString
 
   override def list(path: Path): fs2.Stream[F, Path] = {
@@ -85,4 +85,8 @@ final case class FileStore[F[_] : ContextShift](fsroot: NioPath, blockingExecuti
   implicit private def _toNioPath(path: Path): NioPath =
     Paths.get(absRoot, path.root, path.key)
 
+}
+
+object FileStore{
+  def apply[F[_]](fsroot: NioPath, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): FileStore[F] = new FileStore(fsroot, blockingExecutionContext)
 }
