@@ -22,18 +22,17 @@ import com.jcraft.jsch._
 import cats.instances.option._
 
 import scala.util.Try
-import scala.concurrent.ExecutionContext
 import java.io.OutputStream
 
 import cats.Traverse
-import cats.effect.{ConcurrentEffect, ContextShift, Resource, IO}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, IO, Resource}
 import cats.effect.concurrent.{MVar, Semaphore}
 import fs2.concurrent.Queue
 
 final class SftpStore[F[_]](
   absRoot: String,
   session: Session,
-  blockingExecutionContext: ExecutionContext,
+  blocker: Blocker,
   mVar: MVar[F, ChannelSftp],
   semaphore: Option[Semaphore[F]],
   connectTimeout: Int
@@ -43,11 +42,11 @@ final class SftpStore[F[_]](
   import Path.SEP
 
   private val openChannel: F[ChannelSftp] = {
-    val openF = CS.evalOn(blockingExecutionContext)(F.delay{
+    val openF = blocker.delay{
       val ch = session.openChannel("sftp").asInstanceOf[ChannelSftp]
       ch.connect(connectTimeout)
       ch
-    })
+    }
     semaphore.fold(openF){s =>
       F.ifM(s.tryAcquire)(openF, getChannel)
     }
@@ -62,7 +61,7 @@ final class SftpStore[F[_]](
     getChannel
   }{
     case ch if ch.isClosed => F.unit
-    case ch => F.ifM(mVar.tryPut(ch))(F.unit, SftpStore.closeChannel(semaphore, blockingExecutionContext)(ch))
+    case ch => F.ifM(mVar.tryPut(ch))(F.unit, SftpStore.closeChannel(semaphore, blocker)(ch))
   }
 
   /**
@@ -82,7 +81,7 @@ final class SftpStore[F[_]](
     q <- fs2.Stream.eval(Queue.bounded[F, Option[ChannelSftp#LsEntry]](64))
     channel <- fs2.Stream.resource(channelResource)
     _ <- fs2.Stream.eval(
-      CS.evalOn(blockingExecutionContext)(F.flatMap(F.attempt(F.delay(channel.ls(path, entrySelector(e => F.runAsync(q.enqueue1(Some(e)))(_ => IO.unit).unsafeRunSync())))))(_ => q.enqueue1(None)))
+      blocker.blockOn(F.flatMap(F.attempt(F.delay(channel.ls(path, entrySelector(e => F.runAsync(q.enqueue1(Some(e)))(_ => IO.unit).unsafeRunSync())))))(_ => q.enqueue1(None)))
     )
     entry <- q.dequeue.unNoneTerminate.filter(e => e.getFilename != "." && e.getFilename != "..")
   } yield {
@@ -97,63 +96,61 @@ final class SftpStore[F[_]](
 
   override def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] =
     fs2.Stream.resource(channelResource).flatMap{channel =>
-      fs2.io.readInputStream(CS.evalOn(blockingExecutionContext)(F.delay(channel.get(path))), chunkSize = chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+      fs2.io.readInputStream(blocker.delay(channel.get(path)), chunkSize = chunkSize, closeAfterUse = true, blocker = blocker)
     }
 
-  override def put(path: Path): fs2.Sink[F, Byte] = { in =>
-    def put(channel: ChannelSftp) = F.flatMap(mkdirs(path, channel))(_ => CS.evalOn(blockingExecutionContext)(F.delay {
+  override def put(path: Path): fs2.Pipe[F, Byte, Unit] = { in =>
+    def put(channel: ChannelSftp) = F.flatMap(mkdirs(path, channel))(_ => blocker.delay {
       // scalastyle:off
       channel.put(/* dst */ path, /* monitor */ null, /* mode */ ChannelSftp.OVERWRITE, /* offset */ 0)
       // scalastyle:on
-    }))
+    })
     
-    def close(os: OutputStream): F[Unit] = CS.evalOn(blockingExecutionContext)(F.delay(os.close()))
+    def close(os: OutputStream): F[Unit] = blocker.delay(os.close())
 
-    def pull(channel: ChannelSftp) = for {
-      os <- fs2.Pull.acquireCancellable(put(channel))(ch => close(ch))
-      _ <- _writeAllToOutputStream1(in, os.resource, blockingExecutionContext)
-    } yield ()
+    def pull(channel: ChannelSftp): fs2.Stream[F, Unit] = fs2.Stream.bracket(put(channel))(close)
+      .flatMap(os => _writeAllToOutputStream1(in, os, blocker).stream)
 
-    fs2.Stream.resource(channelResource).flatMap(channel => pull(channel).stream)
+    fs2.Stream.resource(channelResource).flatMap(channel => pull(channel))
   }
 
   override def move(src: Path, dst: Path): F[Unit] =
     channelResource.use{channel =>
-      F.flatMap(mkdirs(dst, channel))(_ => CS.evalOn(blockingExecutionContext)(F.delay(channel.rename(src, dst))))
+      F.flatMap(mkdirs(dst, channel))(_ => blocker.delay(channel.rename(src, dst)))
     }
 
   override def copy(src: Path, dst: Path): F[Unit] = {
     val s = for {
       channel <- fs2.Stream.resource(channelResource)
       _ <- fs2.Stream.eval(F.delay(mkdirs(dst, channel)))
-      _ <- get(src).to(this.bufferedPut(dst, blockingExecutionContext))
+      _ <- get(src).through(this.bufferedPut(dst, blocker))
     } yield ()
 
     s.compile.drain
   }
 
   override def remove(path: Path): F[Unit] = channelResource.use{channel =>
-    CS.evalOn(blockingExecutionContext)(F.delay{
+    blocker.delay{
       try {
         channel.rm(path)
       } catch {
         // Let the remove() call succeed if there is no file at this path
         case e: SftpException if e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE => ()
       }
-    })
+    }
   }
 
   implicit def _pathToString(path: Path): String = s"$absRoot$SEP${path.root}$SEP${path.key}"
 
-  private def mkdirs(path: Path, channel: ChannelSftp): F[Unit] = CS.evalOn(blockingExecutionContext) {
-    F.delay {
+  private def mkdirs(path: Path, channel: ChannelSftp): F[Unit] =
+    blocker.delay {
       _pathToString(path).split(SEP.toChar).drop(1).foldLeft("") { case (acc, s) =>
         Try(channel.mkdir(acc))
         s"$acc$SEP$s"
       }
       ()
     }
-  }
+
 }
 
 object SftpStore {
@@ -165,7 +162,7 @@ object SftpStore {
   def apply[F[_]](
     absRoot: String,
     fa: F[Session],
-    blockingExecutionContext: ExecutionContext,
+    blocker: Blocker,
     maxChannels: Option[Long] = None,
     connectTimeout: Int = 10000
   )(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): fs2.Stream[F, SftpStore[F]] =
@@ -175,10 +172,10 @@ object SftpStore {
       for {
         session <- fs2.Stream.bracket(fa)(session => F.delay(session.disconnect()))
         semaphore <- fs2.Stream.eval(Traverse[Option].sequence(maxChannels.map(Semaphore.apply[F])))
-        mVar <- fs2.Stream.bracket(MVar.empty[F, ChannelSftp])(mVar => F.flatMap(mVar.tryTake)(_.fold(F.unit)(closeChannel[F](semaphore, blockingExecutionContext))))
-      } yield new SftpStore[F](absRoot, session, blockingExecutionContext, mVar, semaphore, connectTimeout)
+        mVar <- fs2.Stream.bracket(MVar.empty[F, ChannelSftp])(mVar => F.flatMap(mVar.tryTake)(_.fold(F.unit)(closeChannel[F](semaphore, blocker))))
+      } yield new SftpStore[F](absRoot, session, blocker, mVar, semaphore, connectTimeout)
     }
 
-  private def closeChannel[F[_]](semaphore: Option[Semaphore[F]], blockingExecutionContext: ExecutionContext)(ch: ChannelSftp)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): F[Unit] =
-    F.productR(semaphore.fold(F.unit)(_.release))(CS.evalOn(blockingExecutionContext)(F.delay(ch.disconnect())))
+  private def closeChannel[F[_]](semaphore: Option[Semaphore[F]], blocker: Blocker)(ch: ChannelSftp)(implicit F: ConcurrentEffect[F], CS: ContextShift[F]): F[Unit] =
+    F.productR(semaphore.fold(F.unit)(_.release))(blocker.delay(ch.disconnect()))
 }

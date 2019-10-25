@@ -48,7 +48,7 @@ class SftpStoreTest extends AbstractStoreTest {
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
   val mVar = MVar.empty[IO, ChannelSftp].unsafeRunSync()
-  override val store: Store[IO] = new SftpStore[IO]("/", session, blockingExecutionContext, mVar, None, 10000)
+  override val store: Store[IO] = new SftpStore[IO]("/", session, blocker, mVar, None, 10000)
   override val root: String = "sftp_tests"
 
   // remove dirs created by AbstractStoreTest
