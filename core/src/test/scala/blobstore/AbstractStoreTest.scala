@@ -107,7 +107,7 @@ trait AbstractStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
     store.listAll(dir).unsafeRunSync().isEmpty must be(true)
   }
-  
+
   // We've had some bugs involving directories at the root level, since it is a bit of an edge case.
   // Worth noting that that most of these tests operate on files that are in nested directories, avoiding
   // any problems that there might be with operating on a root level file/directory.
@@ -120,7 +120,7 @@ trait AbstractStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       .map(writeFile(store, rootDir))
 
     val exp = paths.map(p => s"${p.key}").toSet
-    
+
     // Not doing equals comparison because this directory contains files from other tests.
     // Also, some stores will prepend a "/" before the filenames. Doing a string comparison to ignore this detail for now.
     val pathsListed = store.listAll(rootDir).unsafeRunSync().map(_.key).toSet.toString()
@@ -289,7 +289,7 @@ trait AbstractStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     store.list(srcDir)
       .compile.drain.unsafeRunSync().isEmpty must be(true)
   }
-  
+
   it should "succeed on remove when path does not exist" in {
     val dir = dirPath("remove-nonexistent-path")
     val path = dir / "no-file.txt"
@@ -309,6 +309,14 @@ trait AbstractStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       res <- store.getContents(path)
       _ <- store.remove(path)
     } yield res must be(exp)
+
+    test.unsafeRunSync()
+  }
+
+  it should "return failed stream when getting non-existing file" in {
+    val test = for {
+      res <- store.get(dirPath("foo") / "doesnt-exists.txt").attempt.compile.lastOrError
+    } yield res mustBe a[Left[_, _]]
 
     test.unsafeRunSync()
   }
