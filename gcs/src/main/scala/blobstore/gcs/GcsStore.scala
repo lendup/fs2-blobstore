@@ -1,13 +1,15 @@
 package blobstore.gcs
 
+import java.io.InputStream
 import java.nio.channels.Channels
 import java.time.Instant
 import java.util.Date
 
 import blobstore.{Path, Store}
 import cats.effect.{ContextShift, Sync}
+import cats.syntax.applicative._
 import com.google.api.gax.paging.Page
-import com.google.cloud.storage.{Acl, Blob, BlobId, BlobInfo, Storage}
+import com.google.cloud.storage.{Acl, Blob, BlobId, BlobInfo, Storage, StorageException}
 import com.google.cloud.storage.Storage.{BlobListOption, CopyRequest}
 import fs2.{Chunk, Sink, Stream}
 
@@ -44,8 +46,15 @@ final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: Exec
   }
 
   def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    val is = CS.evalOn(blockingExecutionContext)(F.delay(Channels.newInputStream(storage.get(path.root, path.key).reader())))
-    fs2.io.readInputStream(is, chunkSize, blockingExecutionContext, closeAfterUse = true)
+    val readBlob = F.delay {
+      Option(storage.get(path.root, path.key)).map(blob => Channels.newInputStream(blob.reader()))
+    }
+    val is: F[Option[InputStream]] = CS.evalOn(blockingExecutionContext)(readBlob)
+
+    Stream.eval(is).flatMap {
+      case Some(is) => fs2.io.readInputStream(is.pure[F], chunkSize, blockingExecutionContext, closeAfterUse = true)
+      case None => Stream.raiseError[F](new StorageException(404, s"Object not found, $path"))
+    }
   }
 
   def put(path: Path): Sink[F, Byte] = {
