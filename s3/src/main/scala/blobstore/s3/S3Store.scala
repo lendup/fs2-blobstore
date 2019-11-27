@@ -59,7 +59,7 @@ final class S3Store[F[_]](transferManager: TransferManager, objectAcl: Option[Ca
           else
             (_chunk(ol), () => None)
         }
-      })
+      }
     }
   }
 
@@ -83,7 +83,7 @@ final class S3Store[F[_]](transferManager: TransferManager, objectAcl: Option[Ca
         transferManager.upload(path.root, path.key, ios._2, meta).waitForCompletion()
         objectAcl.foreach(acl => s3.setObjectAcl(path.root, path.key, acl))
         ()
-      }))
+      })
 
       val writeBytes: Stream[F, Unit] =
         _writeAllToOutputStream1(in, ios._1, blocker).stream ++ Stream.eval(F.delay(ios._1.close()))
@@ -109,7 +109,7 @@ final class S3Store[F[_]](transferManager: TransferManager, objectAcl: Option[Ca
     sseAlgorithm.foreach(meta.setSSEAlgorithm)
     val req = new CopyObjectRequest(src.root, src.key, dst.root, dst.key).withNewObjectMetadata(meta)
     transferManager.copy(req).waitForCompletion()
-  })
+  }
 
   override def remove(path: Path): F[Unit] = blocker.delay(s3.deleteObject(path.root, path.key))
 }
