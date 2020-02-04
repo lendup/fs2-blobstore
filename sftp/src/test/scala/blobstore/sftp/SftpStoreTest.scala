@@ -65,4 +65,24 @@ class SftpStoreTest extends AbstractStoreTest {
 
   }
 
+  it should "list more than 64 (default queue/buffer size) keys" in {
+    import cats.implicits._
+    import blobstore.implicits._
+
+    val dir: Path = dirPath("list-more-than-64")
+
+    val paths = (1 to 256)
+      .toList
+      .map(i => s"filename-$i.txt")
+      .map(writeFile(store, dir))
+
+    val exp = paths.map(_.key).toSet
+
+    store.listAll(dir).unsafeRunSync().map(_.key).toSet must be(exp)
+
+    val io: IO[List[Unit]] = paths.map(store.remove).sequence
+    io.unsafeRunSync()
+
+    store.listAll(dir).unsafeRunSync().isEmpty must be(true)
+  }
 }
