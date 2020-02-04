@@ -80,10 +80,11 @@ final class SftpStore[F[_]](
   for{
     q <- fs2.Stream.eval(Queue.bounded[F, Option[ChannelSftp#LsEntry]](64))
     channel <- fs2.Stream.resource(channelResource)
-    _ <- fs2.Stream.eval(
-      blocker.blockOn(F.flatMap(F.attempt(F.delay(channel.ls(path, entrySelector(e => F.runAsync(q.enqueue1(Some(e)))(_ => IO.unit).unsafeRunSync())))))(_ => q.enqueue1(None)))
+    entry <- q.dequeue.unNoneTerminate.filter(e => e.getFilename != "." && e.getFilename != "..").concurrently(
+      fs2.Stream.eval(
+        blocker.blockOn(F.flatMap(F.attempt(F.delay(channel.ls(path, entrySelector(e => F.runAsync(q.enqueue1(Some(e)))(_ => IO.unit).unsafeRunSync())))))(_ => q.enqueue1(None)))
+      )
     )
-    entry <- q.dequeue.unNoneTerminate.filter(e => e.getFilename != "." && e.getFilename != "..")
   } yield {
     val newPath = if (path.filename == entry.getFilename) path else path / entry.getFilename
     newPath.copy(
