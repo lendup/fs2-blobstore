@@ -15,10 +15,11 @@ Copyright 2018 LendUp Global, Inc.
 */
 package blobstore
 
-import org.scalatest.{FlatSpec, MustMatchers}
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.flatspec.AnyFlatSpec
 import blobstore.PathOps._
 
-class PathTest extends FlatSpec with MustMatchers {
+class PathTest extends AnyFlatSpec with Matchers {
   behavior of "Path"
   it should "parse string path to file correctly" in {
     val s3Path = Path("s3://some-bucket/path/to/file")
