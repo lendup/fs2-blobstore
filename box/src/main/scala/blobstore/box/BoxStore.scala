@@ -16,18 +16,16 @@ Copyright 2018 LendUp Global, Inc.
 package blobstore
 package box
 
-
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
 import cats.implicits._
-import cats.effect.{Concurrent, ContextShift}
+import cats.effect.{Blocker, Concurrent, ContextShift}
 import com.box.sdk.{BoxAPIConnection, BoxFile, BoxFolder, BoxItem}
-import fs2.{Sink, Stream}
+import fs2.{Pipe, Stream}
 
-import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
-final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blockingExecutionContext: ExecutionContext)(implicit F: Concurrent[F], CS: ContextShift[F]) extends Store[F] {
+final class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blocker: Blocker)(implicit F: Concurrent[F], CS: ContextShift[F]) extends Store[F] {
 
   val rootFolder = new BoxFolder(api, rootFolderId)
 
@@ -112,7 +110,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
           bothStreams._1.close()
         }))).getOrElse(Stream.fromIterator(Iterator.empty))
 
-        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blockingExecutionContext = blockingExecutionContext)
+        readInput = fs2.io.readInputStream(F.delay(bothStreams._2), chunkSize, closeAfterUse = true, blocker = blocker)
 
         s <- readInput concurrently dl
     } yield s
@@ -170,7 +168,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
     * @param path to put
     * @return sink of bytes. This throws an exception if a file at this path already exists.
     */
-  override def put(path: Path): Sink[F, Byte] = { in =>
+  override def put(path: Path): Pipe[F, Byte, Unit] = { in =>
     val pathSplit = splitPath(path)
 
     val init: F[(OutputStream, InputStream, BoxFolder)] = F.delay {
@@ -182,7 +180,7 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
 
     val consume: ((OutputStream, InputStream, BoxFolder)) => Stream[F, Unit] = ios => {
       val putToBox = Stream.eval(F.delay(ios._3.uploadFile(ios._2, pathSplit._2)).void)
-      val writeBytes = _writeAllToOutputStream1(in, ios._1).stream ++ Stream.eval(F.delay(ios._1.close()))
+      val writeBytes = _writeAllToOutputStream1(in, ios._1, blocker).stream ++ Stream.eval(F.delay(ios._1.close()))
       putToBox concurrently writeBytes
     }
 
@@ -235,4 +233,12 @@ final case class BoxStore[F[_]](api: BoxAPIConnection, rootFolderId: String, blo
   override def remove(path: Path): F[Unit] = F.delay {
     boxFileAtPath(path).foreach(_.delete())
   }
+}
+
+object BoxStore{
+  def apply[F[_]](
+    api: BoxAPIConnection,
+    rootFolderId: String,
+    blocker: Blocker
+  )(implicit F: Concurrent[F], CS: ContextShift[F]): BoxStore[F] = new BoxStore(api, rootFolderId, blocker)
 }

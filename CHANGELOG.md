@@ -1,3 +1,10 @@
+v0.6.0
+======
+* Make path scheme agnostic [#47](https://github.com/lendup/fs2-blobstore/pull/47)
+* Block on blocking EC [#49](https://github.com/lendup/fs2-blobstore/pull/49)
+* Concurrent SftpStore and other changes [#48](https://github.com/lendup/fs2-blobstore/pull/52)
+* Updated dependencies [#54](https://github.com/lendup/fs2-blobstore/pull/54)
+
 v0.5.0
 ======
 * Add GcsStore (Google Cloud storage) [#46](https://github.com/lendup/fs2-blobstore/pull/46)

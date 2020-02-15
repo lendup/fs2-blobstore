@@ -20,11 +20,12 @@ import java.nio.file.Paths
 import java.util.Properties
 
 import cats.effect.IO
+import cats.effect.concurrent.MVar
 import com.jcraft.jsch.{ChannelSftp, JSch}
 
 class SftpStoreTest extends AbstractStoreTest {
 
-  val (channel, session) = try {
+  val session = try {
     val jsch = new JSch()
 
     val session = jsch.getSession("blob", "sftp-container", 22)
@@ -37,18 +38,17 @@ class SftpStoreTest extends AbstractStoreTest {
 
     session.connect()
 
-    val channel = session.openChannel("sftp").asInstanceOf[ChannelSftp]
-    channel.connect(10000)
-    (channel, session)
+    session
   } catch {
     // this is UGLY!!! but just want to ignore errors if you don't have sftp container running
     case e: Throwable =>
       e.printStackTrace()
-      (null, null)
+      null
   }
 
   private val rootDir = Paths.get("tmp/sftp-store-root/").toAbsolutePath.normalize
-  override val store: Store[IO] = SftpStore[IO]("/", channel, blockingExecutionContext = blockingExecutionContext)
+  val mVar = MVar.empty[IO, ChannelSftp].unsafeRunSync()
+  override val store: Store[IO] = new SftpStore[IO]("/", session, blocker, mVar, None, 10000)
   override val root: String = "sftp_tests"
 
   // remove dirs created by AbstractStoreTest
@@ -56,7 +56,6 @@ class SftpStoreTest extends AbstractStoreTest {
     super.afterAll()
 
     try {
-      channel.disconnect()
       session.disconnect()
     } catch {
       case _: Throwable =>

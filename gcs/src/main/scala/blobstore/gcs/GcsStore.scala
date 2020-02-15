@@ -1,22 +1,20 @@
 package blobstore.gcs
 
-import java.io.InputStream
 import java.nio.channels.Channels
 import java.time.Instant
 import java.util.Date
 
 import blobstore.{Path, Store}
-import cats.effect.{ContextShift, Sync}
+import cats.effect.{ContextShift, Sync, Blocker}
 import cats.syntax.applicative._
 import com.google.api.gax.paging.Page
 import com.google.cloud.storage.{Acl, Blob, BlobId, BlobInfo, Storage, StorageException}
 import com.google.cloud.storage.Storage.{BlobListOption, CopyRequest}
-import fs2.{Chunk, Sink, Stream}
+import fs2.{Chunk, Pipe, Stream}
 
-import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
-final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: ExecutionContext, acls: List[Acl] = Nil)(implicit F: Sync[F], CS: ContextShift[F]) extends Store[F] {
+final class GcsStore[F[_]](storage: Storage, blocker: Blocker, acls: List[Acl] = Nil)(implicit F: Sync[F], CS: ContextShift[F]) extends Store[F] {
 
   private def _chunk(pg: Page[Blob]): Chunk[Path] = {
     val (dirs, files) = pg.getValues.asScala.toSeq.partition(_.isDirectory)
@@ -33,7 +31,7 @@ final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: Exec
     Stream.unfoldChunkEval[F, () => Option[Page[Blob]], Path]{
       () => Some(storage.list(path.root, BlobListOption.currentDirectory(), BlobListOption.prefix(path.key)))
     }{getPage =>
-      CS.evalOn(blockingExecutionContext)(F.delay{
+      blocker.delay{
         getPage().map{pg =>
           if (pg.hasNextPage){
             (_chunk(pg), () => Some(pg.getNextPage))
@@ -41,23 +39,22 @@ final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: Exec
             (_chunk(pg), () => None)
           }
         }
-      })
+      }
     }
   }
 
   def get(path: Path, chunkSize: Int): fs2.Stream[F, Byte] = {
-    val readBlob = F.delay {
+    val is = blocker.delay {
       Option(storage.get(path.root, path.key)).map(blob => Channels.newInputStream(blob.reader()))
     }
-    val is: F[Option[InputStream]] = CS.evalOn(blockingExecutionContext)(readBlob)
 
     Stream.eval(is).flatMap {
-      case Some(is) => fs2.io.readInputStream(is.pure[F], chunkSize, blockingExecutionContext, closeAfterUse = true)
+      case Some(is) => fs2.io.readInputStream(is.pure[F], chunkSize, blocker, closeAfterUse = true)
       case None => Stream.raiseError[F](new StorageException(404, s"Object not found, $path"))
     }
   }
 
-  def put(path: Path): Sink[F, Byte] = {
+  def put(path: Path): Pipe[F, Byte, Unit] = {
     val fos = Sync[F].delay{
       val builder = {
         val b = BlobInfo.newBuilder(path.root, path.key)
@@ -67,16 +64,25 @@ final case class GcsStore[F[_]](storage: Storage, blockingExecutionContext: Exec
       val writer = storage.writer(blobInfo)
       Channels.newOutputStream(writer)
     }
-    fs2.io.writeOutputStream(fos, blockingExecutionContext, closeAfterUse = true)
+    fs2.io.writeOutputStream(fos, blocker, closeAfterUse = true)
   }
 
   def move(src: Path, dst: Path): F[Unit] = F.productR(copy(src, dst))(remove(src))
 
   def copy(src: Path, dst: Path): F[Unit] = {
     val req = CopyRequest.newBuilder().setSource(src.root, src.key).setTarget(BlobId.of(dst.root, dst.key)).build()
-    CS.evalOn(blockingExecutionContext)(F.map(F.delay(storage.copy(req).getResult))(_ => ()))
+    F.void(blocker.delay(storage.copy(req).getResult))
   }
 
   def remove(path: Path): F[Unit] =
-    CS.evalOn(blockingExecutionContext)(F.map(F.delay(storage.delete(path.root, path.key)))(_ => ()))
+    F.void(blocker.delay(storage.delete(path.root, path.key)))
+}
+
+
+object GcsStore{
+  def apply[F[_]](
+    storage: Storage,
+    blocker: Blocker,
+    acls: List[Acl]
+  )(implicit F: Sync[F], CS: ContextShift[F]): GcsStore[F] = new GcsStore(storage, blocker, acls)
 }

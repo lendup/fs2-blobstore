@@ -6,8 +6,8 @@ services:
 - docker
 
 scala:
-- 2.11.12
-- 2.12.6
+- 2.12.10
+- 2.13.0
 
 jdk:
 - openjdk8
@@ -30,18 +30,17 @@ script:
   else
     docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
   fi
-- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
 - docker-compose rm -svf
 
 cache:
   directories:
-  - "$HOME/.ivy2/cache"
-  - "$HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION"
+    - $HOME/.m2
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt
+    - $HOME/.coursier
+    - $HOME/.cache
 
 after_success:
-- find $HOME/.sbt -name "*.lock" | xargs rm || echo "failed"
-- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm || echo "failed"
 - docker-compose rm -svf
 - bash <(curl -s https://codecov.io/bash) -cF "scala-$TRAVIS_SCALA_VERSION"  -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
 

@@ -17,24 +17,26 @@ package blobstore
 
 import java.util.UUID
 import java.nio.file.{Paths, Path => NioPath}
+import java.util.concurrent.Executors
 
 import blobstore.fs.FileStore
-import org.scalatest.{FlatSpec, BeforeAndAfterAll, MustMatchers}
-import cats.effect.{ContextShift, IO}
+import org.scalatest.BeforeAndAfterAll
+import cats.effect.{Blocker, ContextShift, IO}
 import cats.effect.laws.util.TestInstances
 import cats.implicits._
 import implicits._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.must.Matchers
 
 import scala.concurrent.ExecutionContext
 
-trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAll with TestInstances {
+trait AbstractStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfterAll with TestInstances {
 
-  implicit val ec: ExecutionContext = ExecutionContext.global
-  implicit val cs: ContextShift[IO] = IO.contextShift(ec)
-  val blockingExecutionContext = ec
+  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  val blocker = Blocker.liftExecutionContext(ExecutionContext.fromExecutor(Executors.newCachedThreadPool))
 
   val transferStoreRootDir: NioPath = Paths.get("tmp/transfer-store-root/")
-  val transferStore: Store[IO] = FileStore[IO](transferStoreRootDir, blockingExecutionContext)
+  val transferStore: Store[IO] = new FileStore[IO](transferStoreRootDir, blocker)
 
   val store: Store[IO]
   val root: String
@@ -302,7 +304,7 @@ trait AbstractStoreTest extends FlatSpec with MustMatchers with BeforeAndAfterAl
       _ <- fs2.Stream(exp)
         .covary[IO]
         .through(fs2.text.utf8Encode)
-        .to(store.put(path))
+        .through(store.put(path))
         .compile.drain
       res <- store.getContents(path)
       _ <- store.remove(path)

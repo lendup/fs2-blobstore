@@ -17,11 +17,9 @@ package blobstore
 
 import java.nio.charset.Charset
 
-import cats.effect.{ContextShift, Sync}
-import fs2.{Pipe, Sink, Stream}
+import cats.effect.{Blocker, ContextShift, Sync}
+import fs2.{Pipe, Stream}
 import cats.implicits._
-
-import scala.concurrent.ExecutionContext
 
 trait StoreOps {
 
@@ -35,7 +33,7 @@ trait StoreOps {
     def put(contents: String, path: Path)(implicit F: Sync[F]): F[Unit] =
       for {
         buf <- F.delay(contents.getBytes(Charset.forName("utf-8")))
-        _ <- Stream.emits(buf).covary[F].to(store.put(path.copy(size = Option(buf.size.toLong)))).compile.drain
+        _ <- Stream.emits(buf).covary[F].through(store.put(path.copy(size = Option(buf.size.toLong)))).compile.drain
       } yield ()
 
     /**
@@ -44,10 +42,10 @@ trait StoreOps {
       * @param dst Path to write to
       * @return F[Unit]
       */
-    def put(src: java.nio.file.Path, dst: Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
+    def put(src: java.nio.file.Path, dst: Path, blocker: Blocker)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
       fs2.io.file
-        .readAll(src, blockingExecutionContext, 4096)
-        .to(store.put(dst.copy(size = Option(src.toFile.length))))
+        .readAll(src, blocker, 4096)
+        .through(store.put(dst.copy(size = Option(src.toFile.length))))
         .compile.drain
 
 
@@ -58,9 +56,9 @@ trait StoreOps {
       * @param path Path to write to
       * @return Sink[F, Byte] buffered sink
       */
-    def bufferedPut(path: Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): Sink[F, Byte] = in =>
-      in.through(bufferToDisk(4096, blockingExecutionContext)).flatMap { case (n, s) =>
-        s.to(store.put(path.copy(size = Some(n))))
+    def bufferedPut(path: Path, blocker: Blocker)(implicit F: Sync[F], CS: ContextShift[F]): Pipe[F, Byte, Unit] = in =>
+      in.through(bufferToDisk(4096, blocker)).flatMap { case (n, s) =>
+        s.through(store.put(path.copy(size = Some(n))))
       }
   }
 
@@ -78,8 +76,8 @@ trait StoreOps {
       * @param dst local file to write contents to
       * @return F[Unit]
       */
-    def get(src: Path, dst: java.nio.file.Path, blockingExecutionContext: ExecutionContext)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
-      store.get(src, 4096).to(fs2.io.file.writeAll(dst, blockingExecutionContext)).compile.drain
+    def get(src: Path, dst: java.nio.file.Path, blocker: Blocker)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] =
+      store.get(src, 4096).through(fs2.io.file.writeAll(dst, blocker)).compile.drain
 
     /**
       * getContents with default UTF8 decoder
@@ -140,7 +138,7 @@ trait StoreOps {
         } else {
           val dp = if (dstPath.isDir) dstPath / p.filename else dstPath
           store.get(p, 4096)
-            .to(dstStore.put(dp.copy(size = p.size)))
+            .through(dstStore.put(dp.copy(size = p.size)))
             .compile.drain
             .as(1)
         }
