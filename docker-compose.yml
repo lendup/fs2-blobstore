@@ -31,6 +31,7 @@ services:
     volumes:
     - ~/.sbt:/root/.sbt
     - ~/.ivy2:/root/.ivy2
+    - ~/.coursier:/root/.coursier
     - .:/opt/app
 
     links:

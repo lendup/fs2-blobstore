@@ -12,38 +12,49 @@ scala:
 jdk:
 - openjdk8
 
-branches:
-  only:
-  - master
+stages:
+- name: test
+- name: release
+  if: "(branch = master AND type = push) OR (tag IS present)"
+
+script:
+  - docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
+  - bash <(curl -s https://codecov.io/bash) -F "scala_${TRAVIS_SCALA_VERSION//[.-]/_}"
+
+jobs:
+  include:
+  - stage: release
+    script: sbt ci-release
 
 before_script:
 - if [ $TRAVIS_PULL_REQUEST = 'false' ]; then git checkout -qf $TRAVIS_BRANCH; fi
 
-script:
-- |
-  if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
-    if [ $RELEASE_ON_PUSH = 'false' ]; then
-      docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
-    else
-      docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
-    fi
-  else
-    docker-compose run --rm sbt ++$TRAVIS_SCALA_VERSION clean coverage "testOnly * -- -l blobstore.IntegrationTest" coverageReport
-  fi
+after_script:
 - docker-compose rm -svf
+
+before_cache:
+- sudo chown -R $(id -u):$(id -g) $HOME
+- find $HOME/.sbt -name "*.lock" -type f -delete
+- find $HOME/.ivy2/cache -name "ivydata-*.properties" -type f -delete
+- rm -rf $HOME/.ivy2/local
 
 cache:
   directories:
-    - $HOME/.m2
-    - $HOME/.ivy2/cache
-    - $HOME/.sbt
-    - $HOME/.coursier
-    - $HOME/.cache
+  - "$HOME/.sbt/1.0/dependency"
+  - "$HOME/.sbt/boot/scala*"
+  - "$HOME/.sbt/launchers"
+  - "$HOME/.ivy2/cache"
+  - "$HOME/.coursier"
 
-after_success:
-- docker-compose rm -svf
-- bash <(curl -s https://codecov.io/bash) -cF "scala-$TRAVIS_SCALA_VERSION"  -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN
+after_success: sudo chown -R $HOME $(id -u):$(id -g)
+
+before_install:
+- git fetch --tags
 
 env:
   global:
-    - secure: Me93VBnyKt2XKJi3kTqVs0vP1QbI928ulmZnk2XsrHqzZKyZrfNhuSk7PNIFjgS7EpULkJr0pi1IHN/W1CKPSp4WFFK9isb+5hoz04VCvkkVVeEqtaRATSgDvdCs0F9Zfw1tqKyWmITI/XwR2R3eIB/jhdaQU7kCeUjayXcVeRhVLcjXyy9gqZJFeByjIzXCGJuk4O4pFFuqyojQPaBiSlcLF/T+0VWb/5WnIoj4yQ4CmVt8yP9SKRAJwqwL/SwWm7jNBDkkaDIE2o7xyG2yzgHKfa2e4aCIR1R8dzkEjdFNIBc14OLojTnewbSgq0Mv6snLaJgjtaZFlcP8HnIMGKjQLWudPZwZjkHfZAGHJSD9FPhbV/JGpfNkKNLhmOvD0yaDkBDLcticYLoH6gI4yNaLBhy3Yqx0ncDbYhCXGH40crV0y9qP1bckC8ovavlvIcaTgaICpsUI4vPOlV+NiG1pl1or6K+GfXtaVXxmmXY22+NFySS++VHHsB4O0GqNz7N/Tvxz8dFzCC1P8DX/ZfCS5hvHY4JmBHyl6UxtwBuEyRpW3FNaHXV6hoXskXgVeNgSofH91OP1bFs6Iv1vLauB+xFGd3vaPJFIENEtlMj6PQ/IEEBNx7zTs4vigWfATonl6cPr7h8/CgZIkQMy60nQObl3+HJHncDe62MMXoY=
+  # Codecov token
+  - secure: jF9Qop8eI+tOYjBp1u7ETmwDRFOCADzNavgp+OTkWEAGDKTH5ebkfKbbd3sQKVABgqivDdmcWWiB16D7QI5oueQ78XqlcjtWYAl/T4Mvaq6eBu6rgz7dTFMFQJYQwruqGyia7gIWGeaGZ//Ng3ngNx+x48p2J+Bu4IQG9T/HOQ2ohitNgK6AD/Ao/TLnZVR57g9DIyI8su1jDD/4Lb6iXx2uQ9EBFeqfHBRb2EMD9VwF+Ka6O7iFRRxiothJxRwcZ+VOkBadT8pS2U0+U/RPMkjLkcnD/8nXFbv9/moJMi3hIk2HP8INFTsQcJi92bX/3KIz4n+FgnUeb0QuFkxyOlM1/M5+1u6rsjp64xa4f8kbN81hLFP09jN2gvWtbwRweDOlJaHEwlRCGRETHNG0EKa2LHxcw6sN9uFyi9+0u9Sy/tlN0xaE2hfMmL4ggxcFTSSk7EG8aU0lHmIOGk6Gk/NbKe1z4sxsuJf5twBCAmGST4C/oJwwLauWXGYZo+nVm9/UpK4ccDg+jNUWN0+iO8he+MpRYoX1/C1vcH6K5WlMAjBGgsEkyF6nmSEnmXxm1L9O+LReyf3gYFpSrHY6h5S6ZnQvO5vKsV0CY/zf0J2Q3fURXR4mwlaxzSuZEo8eQt5rEMQEF0sGYK4bCnZZdLjrNYp0LFArM3/Fge53zG0=
+  # Sonatype username and password
+  - secure: Ir/FC49bV3xHMtNFwaN/rFwQsBYCaPYLei02zisKYDL9CYNR1Wpx8kFjagU6XG4DOdTygli45Q6D7RLzZWkqvnWtnHW9XMC2KZo/sOD9bTgGmKpf2Q+SyCDNIyoyzcigpXrDLmCyLLKvC5nRgaJCv21dwgFokW5aEpLKh88inVHR+Nuv0yZtmRbzf2CsTq2fV8wOYSzEtsV1W4/dSg0oH6tTssFFX782EC4/AH5TdphA1i2DqFOsu064xl+Vvhl8r27cz+MT1snqTB6gjOVCelIavr4p9rnJZv+su7bQdsYCCXucCNS8xhmR63OBNYIejP5Op6MMf3BKBatjlVdJrFLj2U33ZQpCfnHJzc8NebnzipbU8pLT+0Mg89P7kesKIP+o80B3DyducqHECH86Ha/VVDHOUItRLzUc4sPVc/nJz6P0VGiDElds2DWq0UvEAWQ1p+2ZgvZ4Uf6j5KYC2ssvOjs6F1u5UfwRRSWX/o2npar0zC0/DYiLyr8D97X8AU+ywb6f1t0Zptbom4bWUCGRwUOfGNKS8HMTEaD++011Y/4yxuz/35gMZ9Klz6hgsZI32BAzoWdC85OkWTUfPjqHNp7Q446Goy+ktGTX5YL+OFT1ROsvclwV4QFGDQjErpX0d8K/dlL8Ctkb7j7TAjPv7m1NbaJfg8q0XW+k99Y=
+  - secure: l1b6TJKc5xF6p43huLuYwkPZwFMr072+D3hhPNM/c78RMrmD/7aGOT/yf1S0Y+00BJlvHRSad2wWm5yd21vZPczeuAZ2rzl1/yBYfdlHq8Q7Ap7dNnB37zl7Y5hEMpPB0YLbGmo9kTuprggR/o/IUffnSTQjaCXRh5TbDIu6wvcQgTTukGRmLMCGJhF3uxw4Afsgqa3RrtIQgHcNSQVg0zeor5jgtBoKgea1sFzYgpKfZFdWHqa7faW3Ku5I0PiH1EEHI72KxV77SsuEJJ8PKb/WGeTgM449K/pzxwCN0tyxXANk9lZFq0R7g9h5J1fS8CRmAP7maRfbmvNVUazpLVL0QxHK9D0l4x/GjH41A2yAeHtDOIOQcitdTkI4wzqn9OC3JdUExoj2G9ZFPAWOqnagZiP6wIos65sI2w7JK+xOyZUG1nspionUykaDKZNo/Dc7gngvZt2geZCMARek7TJ+3zTjWkuMFdKYICqtc/jZjcMPgwBym6p3HgROegSeuzh8Wsz86QPHlTp5BquHDh0XgIdO+Y4IwwygX4xLzUE87w5aI3mdCW5HV0a4M2TcBLT+/2ZKyeGL3KqUAWSSZEjMSQ1YghdGa31lShH77g5EEAjsHKL1FhYww4jZSOv5vC35PIP+CfITruQQX2Y77n+I1MCO3u2Zci3bEA/HpQY=
