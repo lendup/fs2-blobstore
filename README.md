@@ -88,7 +88,7 @@ consistent with all other `Store` implementations.
 Tests are set up to run via docker-compose:
 
 ```bash
-docker-compose run --rm sbt "testOnly * -- -l blobstore.IntegrationTest"
+docker-compose run --rm sbt "+testOnly * -- -l blobstore.IntegrationTest"
 ```
 
 This will start a [minio](https://www.minio.io/docker.html) (Amazon S3 compatible 

@@ -23,7 +23,7 @@ services:
     command: "server /data"
 
   sbt:
-    image: hseeberger/scala-sbt:8u171_2.12.6_1.2.1
+    image: hseeberger/scala-sbt:8u242_1.3.8_2.12.10
 
     entrypoint: /usr/bin/sbt
     working_dir: /opt/app
